@@ -1,0 +1,7 @@
+*.pyc
+*.pyo
+.*.swp
+feather.egg-info/*
+MANIFEST.in
+built/*
+dist/*
