@@ -1,4 +1,5 @@
 import itertools
+import operator
 import socket
 import sys
 import urlparse
@@ -65,6 +66,14 @@ class WSGIRequestHandler(object):
 
         return True, request.close_connection, data
 
+    def _intify(self, s):
+        if isinstance(s, (int, long)):
+            return s
+        if isinstance(s, float):
+            return int(s)
+        return int(''.join(itertools.takewhile(
+                operator.methodcaller('isdigit'), s.strip())))
+
     def make_environ(self, request):
         parsedurl = urlparse.urlsplit(request.path)
 
@@ -79,7 +88,7 @@ class WSGIRequestHandler(object):
             'SCRIPT_NAME': '',
             'PATH_INFO': parsedurl.path,
             'SERVER_NAME': self.server.address[0],
-            'SERVER_PORT': self.server.address[1],
+            'SERVER_PORT': str(self.server.address[1]),
             'REQUEST_METHOD': request.method,
             'SERVER_PROTOCOL': request.version,
         }
@@ -105,7 +114,7 @@ class WSGIRequestHandler(object):
             response['written'].append(data)
 
         def start_response(status, response_headers, exc_info=None):
-            response['status'] = status
+            response['status'] = self._intify(status)
             response['headers'] = response_headers
             response['written'] = []
             return write
