@@ -31,7 +31,7 @@ class HTTPWSGIRequestHandler(object):
 
         # don't put the headers in their own send() call, so prepend
         # them to the first item yielded from the iterable
-        result = itertools.chain(collector['prefix'], result)
+        result = itertools.chain([collector['prefix'].getvalue()], result)
         firstresult = iter(result).next()
 
         # after getting the first result from the response iterable,

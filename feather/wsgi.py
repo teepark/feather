@@ -1,4 +1,8 @@
 import sys
+try:
+    import cStringIO as StringIO
+except ImportError:
+    import StringIO
 
 
 def make_environ(request, server_address):
@@ -35,7 +39,7 @@ def make_environ(request, server_address):
     return environ
 
 def make_start_response():
-    collector = {'prefix': []}
+    collector = {'prefix': StringIO.StringIO()}
 
     def start_response(status, headers, exc_info=None):
         if exc_info and collector.get('headers_sent'):
@@ -47,7 +51,7 @@ def make_start_response():
         return write
 
     def write(data):
-        collector['prefix'].append(data)
+        collector['prefix'].write(data)
         collector['headers_sent'] = True
 
     return start_response, collector
