@@ -7,7 +7,7 @@ from feather.server import Server, HTTPConnectionHandler, HTTPWSGIRequestHandler
 
 def wsgiapp(environ, start_response):
     if environ['PATH_INFO'] == '/':
-        start_response(200, [('content-type', 'text/html')])
+        start_response("200 OK", [('content-type', 'text/html')])
         return ['''
             <form action=/handler method=POST>
                 <input type=text name=data1/><br>

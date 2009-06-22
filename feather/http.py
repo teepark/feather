@@ -65,19 +65,6 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
 
     version = map(int, version)
 
-    # read the header lines ourselves b/c HTTPMessage sucks at reading
-    # the right amount - it always ruins the file object and socket for
-    # trying to get the request body later
-    headerbuffer = StringIO.StringIO()
-    while 1:
-        line = rfile.readline()
-        if line in ('\n', '\r\n'):
-            # this should position rfile at the beginning of the body,
-            # if there is one
-            break
-        headerbuffer.write(line)
-    headerbuffer.seek(0)
-
     return HTTPRequest(
             method=method,
             version=version,
@@ -86,5 +73,5 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
             path=url.path,
             querystring=url.query,
             fragment=url.fragment,
-            headers=header_class(headerbuffer),
+            headers=header_class(rfile),
             rfile=rfile)
