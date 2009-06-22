@@ -1,134 +1,102 @@
 import itertools
-import operator
 import socket
-import sys
 import urlparse
 
-import http
 import greenhouse
+import feather.http
+import feather.wsgi
 
+
+class HTTPWSGIRequestHandler(object):
+
+    wsgiapp = None
+
+    def __init__(self, request, server, connection_handler):
+        self.request = request
+        self.server = server
+        self.connection_handler = connection_handler
+
+    def respond(self):
+        environ = feather.wsgi.make_environ(self.request, self.server.address)
+        start_response, collector = feather.wsgi.make_start_response()
+
+        result = self.wsgiapp(environ, start_response)
+
+        for key, value in collector['headers']:
+            if key.lower() == 'content-length':
+                break
+        else:
+            # if we aren't sending a Content-Length, close the connection
+            self.connection_handler.open = False
+
+        # don't put the headers in their own send() call, so prepend
+        # them to the first item yielded from the iterable
+        result = itertools.chain(collector['prefix'], result)
+        firstresult = iter(result).next()
+
+        # after getting the first result from the response iterable,
+        # the headers have to have been made available
+        head = "HTTP/1.1 %s\r\n%s\r\n\r\n" % (collector['status'],
+                "\r\n".join("%s: %s" % pair for pair in collector['headers']))
+
+        return itertools.chain([head + firstresult], result)
+
+class HTTPConnectionHandler(object):
+
+    request_handler = HTTPWSGIRequestHandler
+
+    def __init__(self, sock, address, server):
+        self.sock = sock
+        self.client_address = address
+        self.server = server
+
+    def handle(self):
+        while 1:
+            rfile = feather.http.InputFile(self.sock, 0)
+            request = feather.http.parse_request(rfile)
+
+            req_handler = self.request_handler(request, self.server, self)
+
+            for chunk in req_handler.respond():
+                self.sock.sendall(chunk)
+
+            connheader = request.headers.get('connection').lower()
+            if connheader == 'close' or (request.version < (1, 1) and
+                                         connheader != 'keep-alive'):
+                break
+
+        self.sock.close()
+
+    def handle_one_request(self):
+        request = feather.http.request(sock.makefile('rb'))
+
+        for chunk in self.request_handler(request, self.server, self).respond():
+            self.sock.sendall(chunk)
+
+        connheader = request.headers.get('connection').lower()
+        if connheader == 'close' or (request.version < (1, 1) and
+                                     connheader != 'keep-alive'):
+            self.open = False
 
 class Server(object):
 
-    socket_family = socket.AF_INET
-    socket_type = socket.SOCK_STREAM
+    connection_handler = HTTPConnectionHandler
 
+    address_family = socket.AF_INET
+    socket_type = socket.SOCK_STREAM
     request_queue_size = 5
 
-    def __init__(self, addr, handler_class):
-        self.address = addr
+    def __init__(self, server_address):
+        self.address = server_address
+        self._serversock = greenhouse.Socket(self.address_family,
+                self.socket_type)
 
-        self.handler_class = handler_class
-        self.handler = self.handler_class(self)
+    def setup(self):
+        self._serversock.bind(self.address)
+        self._serversock.listen(self.request_queue_size)
 
-        self.socket = greenhouse.Socket(self.socket_family, self.socket_type)
-        self.socket.bind(self.address)
-        if self.socket_type is socket.SOCK_STREAM:
-            self.socket.listen(self.request_queue_size)
-
-    def serve_forever(self):
+    def serve(self):
         while 1:
-            try:
-                client, addr = self.socket.accept()
-                greenhouse.schedule(self.handle_request, args=(client, addr))
-            except KeyboardInterrupt:
-                self.socket.close()
-
-    def handle_request(self, client, addr):
-        sendback, terminal, data = self.handler.respond(client, addr)
-        if sendback:
-            for chunk in data:
-                client.sendall(chunk)
-                greenhouse.pause()
-        if terminal:
-            client.close()
-
-class WSGIRequestHandler(object):
-    def __init__(self, server, wsgiapp):
-        self.server = server
-        self.wsgiapp = wsgiapp
-
-    def respond(self, clientsock, address):
-        request = http.parse(clientsock.makefile('rb'))
-        environ = self.make_environ(request)
-        start_response, response = self.make_start_response()
-
-        mainbody = self.wsgiapp(environ, start_response)
-
-        response = "HTTP/1.1 %d %s\r\n%s\r\n\r\n" % (
-            response['status'],
-            http.responsecodes[response['status']][0],
-            "\r\n".join("%s: %s" % (h[0].title(), h[1])
-                    for h in response['headers'])
-            ) + ''.join(response['written'])
-
-        data = itertools.chain([response], mainbody)
-
-        return True, request.close_connection, data
-
-    def _intify(self, s):
-        if isinstance(s, (int, long)):
-            return s
-        if isinstance(s, float):
-            return int(s)
-        return int(''.join(itertools.takewhile(
-                operator.methodcaller('isdigit'), s.strip())))
-
-    def make_environ(self, request):
-        parsedurl = urlparse.urlsplit(request.path)
-
-        environ = {
-            'wsgi.input': request.infile,
-            'wsgi.version': (1, 0),
-            'wsgi.url_scheme': parsedurl.scheme or 'http',
-            'wsgi.errors': sys.stderr,
-            'wsgi.multithread': False,
-            'wsgi.multiprocess': True,
-            'wsgi.run_once': False,
-            'SCRIPT_NAME': '',
-            'PATH_INFO': parsedurl.path,
-            'SERVER_NAME': self.server.address[0],
-            'SERVER_PORT': str(self.server.address[1]),
-            'REQUEST_METHOD': request.method,
-            'SERVER_PROTOCOL': request.version,
-        }
-
-        if parsedurl.query:
-            environ['QUERY_STRING'] = parsedurl.query
-
-        if 'content-length' in request.headers:
-            environ['CONTENT_LENGTH'] = request.headers['content-length']
-
-        if 'content-type' in request.headers:
-            environ['CONTENT_TYPE'] = request.headers['content-type']
-
-        for name, value in request.headers.items():
-            environ['HTTP_%s' % name.replace('-', '_').title()] = value
-
-        return environ
-
-    def make_start_response(self):
-        response = {}
-
-        def write(data):
-            response['written'].append(data)
-
-        def start_response(status, response_headers, exc_info=None):
-            response['status'] = self._intify(status)
-            response['headers'] = response_headers
-            response['written'] = []
-            return write
-
-        return start_response, response
-
-
-if __name__ == "__main__":
-    def hello_world(environ, start_response):
-        start_response(200, [("Content-type", "text/plain")])
-        return ["Hello, World!"]
-
-    def wsgi(server):
-        return WSGIRequestHandler(server, hello_world)
-
-    server = Server(("", 9000), wsgi)
-    server.serve_forever()
+            clientsock, clientaddr = self._serversock.accept()
+            conn_handler = self.connection_handler(clientsock, clientaddr, self)
+            greenhouse.schedule(conn_handler.handle)
