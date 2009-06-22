@@ -20,7 +20,10 @@ class HTTPWSGIRequestHandler(object):
         environ = feather.wsgi.make_environ(self.request, self.server.address)
         start_response, collector = feather.wsgi.make_start_response()
 
-        result = self.wsgiapp(environ, start_response)
+        try:
+            result = self.wsgiapp(environ, start_response)
+        except:
+            raise feather.http.HTTPError(500)
 
         for key, value in collector['headers']:
             if key.lower() == 'content-length':
@@ -52,17 +55,29 @@ class HTTPConnectionHandler(object):
 
     def handle(self):
         while 1:
-            rfile = feather.http.InputFile(self.sock, 0)
-            request = feather.http.parse_request(rfile)
+            try:
+                rfile = feather.http.InputFile(self.sock, 0)
+                request = feather.http.parse_request(rfile)
 
-            req_handler = self.request_handler(request, self.server, self)
+                req_handler = self.request_handler(request, self.server, self)
 
-            for chunk in req_handler.respond():
-                self.sock.sendall(chunk)
+                for chunk in req_handler.respond():
+                    self.sock.sendall(chunk)
 
-            connheader = request.headers.get('connection').lower()
-            if connheader == 'close' or (request.version < (1, 1) and
-                                         connheader != 'keep-alive'):
+                connheader = request.headers.get('connection').lower()
+                if connheader == 'close' or (request.version < (1, 1) and
+                                             connheader != 'keep-alive'):
+                    break
+            except feather.http.HTTPError, err:
+                short, long = feather.http.responses[err.args[0]]
+                self.sock.sendall("HTTP/1.0 %d %s\r\n"
+                                  "Connection: close\r\n"
+                                  "Content-Length: %d\r\n"
+                                  "Content-Type: text/plain\r\n\r\n"
+                                  "%s" %
+                                  (err.args[0], short, len(long), long))
+                break
+            except:
                 break
 
         self.sock.close()

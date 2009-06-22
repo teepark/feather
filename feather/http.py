@@ -1,3 +1,4 @@
+import BaseHTTPServer
 import cgi
 import collections
 import httplib
@@ -11,6 +12,8 @@ except ImportError:
     import StringIO
 
 
+responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
+
 class HTTPRequest(object):
     '''a simple dictionary proxy object, but some keys are expected by servers:
 
@@ -20,13 +23,13 @@ class HTTPRequest(object):
     host
     path
     querystring
-    queryparams
-
+    headers
+    rfile
     '''
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-class InvalidRequest(Exception): pass
+class HTTPError(Exception): pass
 
 class InputFile(socket._fileobject):
     "a file object that doesn't attempt to read past Content-Length"
