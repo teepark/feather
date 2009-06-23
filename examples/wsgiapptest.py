@@ -36,5 +36,4 @@ if __name__ == "__main__":
 
     server = Server(("", 9000))
     server.connection_handler = ConnectionHandler
-    server.setup()
     server.serve()

@@ -103,15 +103,24 @@ class Server(object):
 
     def __init__(self, server_address):
         self.address = server_address
+        self.is_setup = False
         self._serversock = greenhouse.Socket(self.address_family,
                 self.socket_type)
 
     def setup(self):
         self._serversock.bind(self.address)
         self._serversock.listen(self.request_queue_size)
+        self.is_setup = True
 
     def serve(self):
+        if not self.is_setup:
+            self.setup()
         while 1:
-            clientsock, clientaddr = self._serversock.accept()
-            conn_handler = self.connection_handler(clientsock, clientaddr, self)
-            greenhouse.schedule(conn_handler.handle)
+            try:
+                clientsock, clientaddr = self._serversock.accept()
+                conn_handler = self.connection_handler(clientsock, clientaddr,
+                                                       self)
+                greenhouse.schedule(conn_handler.handle)
+            except KeyboardInterrupt:
+                self._serversock.close()
+                raise
