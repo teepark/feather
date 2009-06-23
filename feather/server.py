@@ -4,7 +4,7 @@ import urlparse
 
 import greenhouse
 import feather.http
-import feather.wsgi
+import feather.wsgitools
 
 
 class HTTPWSGIRequestHandler(object):
@@ -17,8 +17,8 @@ class HTTPWSGIRequestHandler(object):
         self.connection_handler = connection_handler
 
     def respond(self):
-        environ = feather.wsgi.make_environ(self.request, self.server.address)
-        start_response, collector = feather.wsgi.make_start_response()
+        environ = feather.wsgitools.make_environ(self.request, self.server.address)
+        start_response, collector = feather.wsgitools.make_start_response()
 
         try:
             result = self.wsgiapp(environ, start_response)
