@@ -10,8 +10,8 @@ def wsgiapp(environ, start_response):
         start_response("200 OK", [('content-type', 'text/html')])
         return ['''
             <form action=/handler method=POST>
-                <input type=text name=data1/><br>
-                <input type=text name=data2/>
+                <input type=text name=data1 /><br>
+                <input type=text name=data2 />
                 <input type=submit />
             </form>
         ''']

@@ -65,6 +65,8 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
 
     version = map(int, version)
 
+    headers = header_class(rfile)
+
     return HTTPRequest(
             method=method,
             version=version,
@@ -73,5 +75,5 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
             path=url.path,
             querystring=url.query,
             fragment=url.fragment,
-            headers=header_class(rfile),
+            headers=headers,
             rfile=rfile)
