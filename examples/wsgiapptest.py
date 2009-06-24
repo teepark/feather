@@ -2,7 +2,8 @@
 
 import cgi
 
-from feather.server import Server, HTTPConnectionHandler, HTTPWSGIRequestHandler
+from feather.server import Server, HTTPConnectionHandler, \
+        HTTPWSGIRequestHandler
 
 
 def wsgiapp(environ, start_response):

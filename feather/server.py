@@ -17,7 +17,8 @@ class HTTPWSGIRequestHandler(object):
         self.connection_handler = connection_handler
 
     def respond(self):
-        environ = feather.wsgitools.make_environ(self.request, self.server.address)
+        environ = feather.wsgitools.make_environ(self.request,
+                                                 self.server.address)
         start_response, collector = feather.wsgitools.make_start_response()
 
         try:
@@ -85,8 +86,8 @@ class HTTPConnectionHandler(object):
     def handle_one_request(self):
         request = feather.http.request(sock.makefile('rb'))
 
-        for chunk in self.request_handler(request, self.server, self).respond():
-            self.sock.sendall(chunk)
+        for chnk in self.request_handler(request, self.server, self).respond():
+            self.sock.sendall(chnk)
 
         connheader = request.headers.get('connection').lower()
         if connheader == 'close' or (request.version < (1, 1) and
