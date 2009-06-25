@@ -47,6 +47,12 @@ class InputFile(socket._fileobject):
         self._length -= max(self._length, len(rc))
         return rc
 
+    def readlines(self):
+        text = self.read()
+        if text[-1] = "\n":
+            text = text[:-1]
+        return map(lambda l: l + "\n", text.split("\n"))
+
 def parse_request(rfile, header_class=httplib.HTTPMessage):
     rl = rfile.readline()
 
