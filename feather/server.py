@@ -1,4 +1,5 @@
 import itertools
+import logging
 import socket
 import urlparse
 
@@ -6,6 +7,7 @@ import greenhouse
 import feather.http
 import feather.wsgitools
 
+logger = logging.getLogger("feather.server")
 
 class HTTPWSGIRequestHandler(object):
 
@@ -109,6 +111,7 @@ class Server(object):
                 self.socket_type)
 
     def setup(self):
+        logger.info("binding listening socket to %r" % (self.address,))
         self._serversock.bind(self.address)
         self._serversock.listen(self.request_queue_size)
         self.is_setup = True
@@ -118,10 +121,14 @@ class Server(object):
             self.setup()
         while 1:
             try:
+                logger.debug("listening for a new connection")
                 clientsock, clientaddr = self._serversock.accept()
                 conn_handler = self.connection_handler(clientsock, clientaddr,
                                                        self)
                 greenhouse.schedule(conn_handler.handle)
+                logger.debug("passed off new connection %d to a new greenlet" %
+                             id(conn_handler))
             except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt caught, closing listen socket")
                 self._serversock.close()
                 raise
