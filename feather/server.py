@@ -55,13 +55,16 @@ class HTTPConnectionHandler(object):
         self.sock = sock
         self.client_address = address
         self.server = server
+        self.open = True
 
     def handle(self):
         logger.debug("greenlet with connection %d started" % id(self))
-        while 1:
+        while self.open:
             try:
                 rfile = feather.http.InputFile(self.sock, 0)
                 request = feather.http.parse_request(rfile)
+                logger.debug("got and parsed a request from connection %d" %
+                             id(self))
 
                 req_handler = self.request_handler(request, self.server, self)
 
@@ -71,8 +74,9 @@ class HTTPConnectionHandler(object):
                 connheader = request.headers.get('connection').lower()
                 if connheader == 'close' or (request.version < (1, 1) and
                                              connheader != 'keep-alive'):
-                    break
+                    self.open = False
             except feather.http.HTTPError, err:
+                logger.debug("sending an HTTP %d error response" % err.args[0])
                 short, long = feather.http.responses[err.args[0]]
                 self.sock.sendall("HTTP/1.0 %d %s\r\n"
                                   "Connection: close\r\n"
@@ -80,10 +84,9 @@ class HTTPConnectionHandler(object):
                                   "Content-Type: text/plain\r\n\r\n"
                                   "%s" %
                                   (err.args[0], short, len(long), long))
-                logger.debug("sent an HTTP %d error response" % err.args[0])
-                break
+                self.open = False
             except:
-                break
+                self.open = False
 
         self.sock.close()
 
