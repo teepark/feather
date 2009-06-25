@@ -61,19 +61,19 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
 
     if method != method.upper():
         logger.debug("bad HTTP method in request line")
-        raise InvalidRequest("bad HTTP method: %s" % method)
+        raise HTTPError("bad HTTP method: %s" % method)
 
     url = urlparse.urlsplit(path)
 
     if version_string[:5] != 'HTTP/':
         logger.debug("bad HTTP version in request line")
-        raise InvalidRequest("bad HTTP version: %s" % version_string)
+        raise HTTPError("bad HTTP version: %s" % version_string)
 
     version = version_string[5:].split(".")
     if len(version) != 2 or not all(itertools.imap(
             operator.methodcaller("isdigit"), version)):
         logger.debug("bad HTTP version in request line")
-        raise InvalidRequest("bad HTTP version: %s" % version_string)
+        raise HTTPError("bad HTTP version: %s" % version_string)
 
     version = map(int, version)
 
