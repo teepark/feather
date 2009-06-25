@@ -57,6 +57,7 @@ class HTTPConnectionHandler(object):
         self.server = server
 
     def handle(self):
+        logger.debug("greenlet with connection %d started" % id(self))
         while 1:
             try:
                 rfile = feather.http.InputFile(self.sock, 0)
@@ -79,6 +80,7 @@ class HTTPConnectionHandler(object):
                                   "Content-Type: text/plain\r\n\r\n"
                                   "%s" %
                                   (err.args[0], short, len(long), long))
+                logger.debug("sent an HTTP %d error response" % err.args[0])
                 break
             except:
                 break
