@@ -2,9 +2,11 @@
 
 import cgi
 
-from feather.server import Server, HTTPConnectionHandler, \
-        HTTPWSGIRequestHandler
+import feather
 
+
+HOST = ""
+PORT = 9000
 
 def wsgiapp(environ, start_response):
     if environ['PATH_INFO'] == '/':
@@ -29,12 +31,4 @@ def wsgiapp(environ, start_response):
 
 
 if __name__ == "__main__":
-    class RequestHandler(HTTPWSGIRequestHandler):
-        wsgiapp = staticmethod(wsgiapp)
-
-    class ConnectionHandler(HTTPConnectionHandler):
-        request_handler = RequestHandler
-
-    server = Server(("", 9000))
-    server.connection_handler = ConnectionHandler
-    server.serve()
+    feather.serve_wsgi_app((HOST, PORT), wsgiapp)
