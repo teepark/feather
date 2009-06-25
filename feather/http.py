@@ -69,7 +69,7 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
         logger.debug("bad HTTP version in request line")
         raise InvalidRequest("bad HTTP version: %s" % version_string)
 
-    version = version_string[5:].split(".", 1)
+    version = version_string[5:].split(".")
     if len(version) != 2 or not all(itertools.imap(
             operator.methodcaller("isdigit"), version)):
         logger.debug("bad HTTP version in request line")
