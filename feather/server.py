@@ -87,17 +87,6 @@ class HTTPConnectionHandler(object):
 
         self.sock.close()
 
-    def handle_one_request(self):
-        request = feather.http.request(sock.makefile('rb'))
-
-        for chnk in self.request_handler(request, self.server, self).respond():
-            self.sock.sendall(chnk)
-
-        connheader = request.headers.get('connection').lower()
-        if connheader == 'close' or (request.version < (1, 1) and
-                                     connheader != 'keep-alive'):
-            self.open = False
-
 class Server(object):
 
     connection_handler = HTTPConnectionHandler
