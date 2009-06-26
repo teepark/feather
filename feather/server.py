@@ -3,9 +3,12 @@ import logging
 import socket
 import urlparse
 
-import greenhouse
 import feather.http
 import feather.wsgitools
+import greenhouse
+
+
+__all__ = ["Server", "HTTPConnectionHandler", "HTTPWSGIRequestHandler"]
 
 logger = logging.getLogger("feather.server")
 
@@ -61,6 +64,9 @@ class HTTPConnectionHandler(object):
         logger.debug("greenlet with connection %d started" % id(self))
         while self.open:
             try:
+                # create the file object expecting no body, when we parse the
+                # request headers from it we will replace the expected body
+                # length with the Content-Length header, if any
                 rfile = feather.http.InputFile(self.sock, 0)
                 request = feather.http.parse_request(rfile)
                 logger.debug("got and parsed a request from connection %d" %
