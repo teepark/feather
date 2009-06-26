@@ -49,7 +49,7 @@ class InputFile(socket._fileobject):
 
     def readlines(self):
         text = self.read()
-        if text[-1] = "\n":
+        if text[-1] == "\n":
             text = text[:-1]
         return map(lambda l: l + "\n", text.split("\n"))
 
