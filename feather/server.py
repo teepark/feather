@@ -36,6 +36,7 @@ class HTTPWSGIRequestHandler(object):
                 break
         else:
             # if we aren't sending a Content-Length, close the connection
+            logger.debug("close connection b/c no Content-Length in response")
             self.connection_handler.open = False
 
         # don't put the headers in their own send() call, so prepend
@@ -80,6 +81,10 @@ class HTTPConnectionHandler(object):
                 connheader = request.headers.get('connection').lower()
                 if connheader == 'close' or (request.version < (1, 1) and
                                              connheader != 'keep-alive'):
+                    if connheader == close:
+                        logger.debug("closing connection - Connection: close")
+                    else:
+                        logger.debug("HTTP<1.1 and no Connection: keep-alive")
                     self.open = False
             except feather.http.HTTPError, err:
                 logger.debug("sending an HTTP %d error response" % err.args[0])
@@ -92,6 +97,7 @@ class HTTPConnectionHandler(object):
                                   (err.args[0], short, len(long), long))
                 self.open = False
             except:
+                logger.debug("unknown exception, HTTP 500 error response")
                 self.open = False
 
         self.sock.close()
