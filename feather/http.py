@@ -13,6 +13,8 @@ except ImportError:
     import StringIO
 
 
+__all__ = ["HTTPRequest", "InputFile", "parse_request"]
+
 logger = logging.getLogger("feather.httpparser")
 
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
