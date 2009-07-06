@@ -2,13 +2,14 @@
 
 import cgi
 import logging
+import optparse
 import sys
 
 import feather
 
 
-HOST = ""
-PORT = 9000
+DEFAULT_HOST = ""
+DEFAULT_PORT = 9000
 
 def xss_scrub(data):
     return data.replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")
@@ -25,7 +26,7 @@ def wsgiapp(environ, start_response):
         start_response("200 OK", [('content-type', 'text/html'),
                                   ('content-length', str(len(response)))])
         return [response]
-    elif environ['PATH_INFO'] == '/handler' and \
+    elif environ['PATH_INFO'].startswith('/handler') and \
             environ['REQUEST_METHOD'] == 'POST':
         data = dict(cgi.parse_qsl(environ['wsgi.input'].read()))
         data['data1'] = xss_scrub(data['data1'])
@@ -42,6 +43,12 @@ def wsgiapp(environ, start_response):
 
 
 if __name__ == "__main__":
-    if '-v' in sys.argv:
+    parser = optparse.OptionParser(add_help_option=False)
+    parser.add_option("-v", "--verbose", action="store_true")
+    parser.add_option("-p", "--port", type="int", default=DEFAULT_PORT)
+    parser.add_option("-h", "--host", default=DEFAULT_HOST)
+
+    options, args = parser.parse_args()
+    if options.verbose:
         logging.getLogger("feather").setLevel(logging.DEBUG)
-    feather.serve_wsgi_app((HOST, PORT), wsgiapp)
+    feather.serve_wsgi_app((options.host, options.port), wsgiapp)
