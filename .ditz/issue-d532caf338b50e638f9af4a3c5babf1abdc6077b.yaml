@@ -5,8 +5,8 @@ type: :feature
 component: feather
 release: 
 reporter: Travis Parker <travis.parker@gmail.com>
-status: :unstarted
-disposition: 
+status: :closed
+disposition: :fixed
 creation_time: 2009-07-06 05:24:34.107045 Z
 references: []
 
@@ -16,3 +16,11 @@ log_events:
   - Travis Parker <travis.parker@gmail.com>
   - created
   - ""
+- - 2009-07-06 07:40:21.284335 Z
+  - Travis Parker <travis.parker@gmail.com>
+  - closed with disposition fixed
+  - ""
+git_branch: 
+claimer: 
+labels: []
+
