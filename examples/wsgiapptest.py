@@ -38,7 +38,8 @@ def wsgiapp(environ, start_response):
         start_response("200 OK", [('content-type', 'text/html'),
                                   ('content-length', str(len(response)))])
         return [response]
-    start_response("404 NOT FOUND", [('content-type', 'text/html')])
+    start_response("404 NOT FOUND", [('content-type', 'text/html'),
+                                     ('content-length', '6')])
     return ['nuh-uh']
 
 
