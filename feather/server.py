@@ -1,6 +1,8 @@
 import itertools
 import logging
 import socket
+import sys
+import traceback
 import urlparse
 
 import feather.http
@@ -78,10 +80,10 @@ class HTTPConnectionHandler(object):
                 for chunk in req_handler.respond():
                     self.sock.sendall(chunk)
 
-                connheader = request.headers.get('connection').lower()
-                if connheader == 'close' or (request.version < (1, 1) and
-                                             connheader != 'keep-alive'):
-                    if connheader == close:
+                connheader = request.headers.get('connection', '').lower()
+                if connheader == 'close' or (tuple(request.version) < (1, 1)
+                                             and connheader != 'keep-alive'):
+                    if connheader == 'close':
                         logger.debug("closing connection - Connection: close")
                     else:
                         logger.debug("HTTP<1.1 and no Connection: keep-alive")
@@ -97,7 +99,9 @@ class HTTPConnectionHandler(object):
                                   (err.args[0], short, len(long), long))
                 self.open = False
             except:
-                logger.debug("unknown exception, HTTP 500 error response")
+                logger.debug("HTTP 500 error response from an exception:")
+                logger.debug("".join("  %s" % line for line in
+                        traceback.format_exception(*sys.exc_info())))
                 self.open = False
 
         self.sock.close()
@@ -137,4 +141,4 @@ class Server(object):
             except KeyboardInterrupt:
                 logger.info("KeyboardInterrupt caught, closing listen socket")
                 self._serversock.close()
-                raise
+                sys.exit()
