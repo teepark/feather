@@ -4,5 +4,15 @@ version: "0.5"
 components: 
 - !ditz.rubyforge.org,2008-03-06/component 
   name: feather
-releases: []
+releases: 
+- !ditz.rubyforge.org,2008-03-06/release 
+  name: "0.5"
+  status: :unreleased
+  release_time: 
+  log_events: 
+  - - 2009-07-08 16:20:09.583502 Z
+    - Travis Parker <travis.parker@gmail.com>
+    - created
+    - ""
+labels: []
 

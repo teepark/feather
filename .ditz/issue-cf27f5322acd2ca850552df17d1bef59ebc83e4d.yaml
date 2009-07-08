@@ -1,0 +1,48 @@
+--- !ditz.rubyforge.org,2008-03-06/issue 
+title: individual greenlet per-request
+desc: |-
+  strategy:
+  
+  new connection -> connection greenlet pair
+    request -> new request greenlet
+  
+  the connection greenlet pair is a listener and a talker.
+  the listener listens for requests and spawns request greenlets,
+  giving each one a Queue to stuff results into. the talker
+  gets from those Queues (reading them to the end, in order) and
+  sends out what it gets.
+  
+  the above is to ensure that responses on the same connection
+  don't overlap (one finishes before the next begins), and that
+  responses go out in the same order in which requests were
+  received.
+type: :feature
+component: feather
+release: "0.5"
+reporter: Travis Parker <travis.parker@gmail.com>
+status: :unstarted
+disposition: 
+creation_time: 2009-07-08 01:26:59.529620 Z
+references: []
+
+id: cf27f5322acd2ca850552df17d1bef59ebc83e4d
+log_events: 
+- - 2009-07-08 01:26:59.530478 Z
+  - Travis Parker <travis.parker@gmail.com>
+  - created
+  - ""
+- - 2009-07-08 16:18:29.593485 Z
+  - Travis Parker <travis.parker@gmail.com>
+  - commented
+  - |-
+    are we sure we want to do this? real browser/server parallelism is acheived
+    through multiple connections, each individual connection just does one request
+    at a time anyway.
+- - 2009-07-08 16:20:24.141182 Z
+  - Travis Parker <travis.parker@gmail.com>
+  - assigned to release 0.5 from unassigned
+  - ""
+git_branch: 
+claimer: 
+labels: []
+
