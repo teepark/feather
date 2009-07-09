@@ -57,6 +57,8 @@ class InputFile(socket._fileobject):
 
 def parse_request(rfile, header_class=httplib.HTTPMessage):
     rl = rfile.readline()
+    while rl in ('\n', '\r\n'):
+        rl = rfile.readline()
 
     method, path, version_string = rl.split(' ', 2)
     version_string = version_string.rstrip()
