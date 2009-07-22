@@ -1,0 +1,19 @@
+created: 2009-07-07 17:26:59.529620
+creator: Travis Parker <travis.parker@gmail.com>
+dependencies: null
+description: "strategy:\n\nnew connection -> connection greenlet pair\n  request ->\
+  \ new request greenlet\n\nthe connection greenlet pair is a listener and a talker.\n\
+  the listener listens for requests and spawns request greenlets,\ngiving each one\
+  \ a Queue to stuff results into. the talker\ngets from those Queues (reading them\
+  \ to the end, in order) and\nsends out what it gets.\n\nthe above is to ensure that\
+  \ responses on the same connection\ndon't overlap (one finishes before the next\
+  \ begins), and that\nresponses go out in the same order in which requests were\n\
+  received."
+id: d5139635d0d941418678c8539bac4f7c
+labels: []
+owner: null
+release: '0.5'
+resolution: ''
+status: unstarted
+title: individual greenlet per-request
+type: feature

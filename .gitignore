@@ -1,8 +1,6 @@
 *.pyc
 *.pyo
 .*.swp
-.ditz-config
-.ditz-plugins
 feather.egg-info/*
 MANIFEST.in
 built/*
