@@ -9,11 +9,11 @@ description: "strategy:\n\nnew connection -> connection greenlet pair\n  request
   \ responses on the same connection\ndon't overlap (one finishes before the next\
   \ begins), and that\nresponses go out in the same order in which requests were\n\
   received."
-id: d5139635d0d941418678c8539bac4f7c
+id: 4a53e7d3-d5139635
 labels: []
 owner: null
 release: '0.5'
-resolution: ''
-status: unstarted
+resolution: invalid
+status: closed
 title: individual greenlet per-request
 type: feature

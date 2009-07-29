@@ -3,7 +3,7 @@ creator: Travis Parker <travis.parker@gmail.com>
 dependencies: null
 description: modules need __all__s, and feather/__init__.py needs from feather.modulename
   import *'s
-id: 9a02560b42ca4e7cac3b0e2f27b3a7e8
+id: 4a517c82-9a02560b
 labels: []
 owner: null
 release: '0.5'

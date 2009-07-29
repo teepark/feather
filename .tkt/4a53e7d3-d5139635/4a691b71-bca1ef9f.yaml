@@ -1,0 +1,7 @@
+comment: 'we don''t need that, individual connections can be synchronous and parallelism
+
+  is acheived via multiple browser/server connections'
+created: 2009-07-23 19:24:49.527875
+creator: Travis Parker <travis.parker@gmail.com>
+id: 4a691b71-bca1ef9f
+title: ticket closed
