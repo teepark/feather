@@ -1,3 +1,4 @@
+import errno
 import itertools
 import logging
 import socket
@@ -112,18 +113,19 @@ class Server(object):
 
     address_family = socket.AF_INET
     socket_type = socket.SOCK_STREAM
-    request_queue_size = 5
+    listen_backlog = 128
 
     def __init__(self, server_address):
         self.address = server_address
         self.is_setup = False
         self._serversock = greenhouse.Socket(self.address_family,
                 self.socket_type)
+        self._serversock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def setup(self):
         logger.info("binding listening socket to %r" % (self.address,))
         self._serversock.bind(self.address)
-        self._serversock.listen(self.request_queue_size)
+        self._serversock.listen(self.listen_backlog)
         self.is_setup = True
 
     def serve(self):
@@ -138,6 +140,12 @@ class Server(object):
                 greenhouse.schedule(conn_handler.handle)
                 logger.debug("passed off new connection %d to a new greenlet" %
                              id(conn_handler))
+            except socket.error, err:
+                if err.args[0] in (errno.EMFILE, errno.ENFILE):
+                    # hit the limit of open file descriptors
+                    logger.info("too many descriptors, closing a socket")
+                    continue
+                raise
             except KeyboardInterrupt:
                 logger.info("KeyboardInterrupt caught, closing listen socket")
                 self._serversock.close()
