@@ -4,10 +4,9 @@ import sys
 import feather.server
 
 
-def serve_wsgi_app(address, wsgiapp):
+def serve_wsgi_app(address, app):
     class RequestHandler(feather.server.HTTPWSGIRequestHandler):
-        pass
-    RequestHandler.wsgiapp = staticmethod(wsgiapp)
+        wsgiapp = staticmethod(app)
 
     class ConnectionHandler(feather.server.HTTPConnectionHandler):
         request_handler = RequestHandler

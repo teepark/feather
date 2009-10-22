@@ -3,5 +3,5 @@
 .*.swp
 feather.egg-info/*
 MANIFEST.in
-built/*
+build/*
 dist/*
