@@ -56,24 +56,24 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
     rl = rfile.readline()
     if rl in ('\n', '\r\n'):
         rl = rfile.readline()
+    if not rl:
+        return None
 
     method, path, version_string = rl.split(' ', 2)
     version_string = version_string.rstrip()
 
-    if method != method.upper():
-        raise HTTPError("bad HTTP method: %s" % method)
+    if method != method.upper() or not method.isalpha():
+        raise HTTPError(400, "bad HTTP method: %s" % method)
 
     url = urlparse.urlsplit(path)
 
     if version_string[:5] != 'HTTP/':
-        raise HTTPError("bad HTTP version: %s" % version_string)
+        raise HTTPError(400, "bad HTTP version: %s" % version_string)
 
-    version = version_string[5:].split(".")
-    if len(version) != 2 or not all(itertools.imap(
-            operator.methodcaller("isdigit"), version)):
-        raise HTTPError("bad HTTP version: %s" % version_string)
-
-    version = map(int, version)
+    try:
+        version = map(int, version_string[5:].split("."))
+    except ValueError:
+        raise HTTPError(400, "bad HTTP version: %s" % version_string)
 
     headers = header_class(rfile)
 
