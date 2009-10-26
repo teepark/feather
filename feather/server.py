@@ -1,5 +1,7 @@
+import contextlib
 import errno
 import itertools
+import os
 import random
 import socket
 import sys
@@ -51,9 +53,15 @@ class HTTPWSGIRequestHandler(object):
 
         return itertools.chain([head + firstresult], result)
 
+def keepalive_timer_hits(connection):
+    def timer_ends():
+        connection.open = False
+    return timer_ends
+
 class HTTPConnectionHandler(object):
 
     request_handler = HTTPWSGIRequestHandler
+    yield_length = 1048576 #1MB
 
     def __init__(self, sock, address, server):
         self.sock = sock
@@ -62,58 +70,79 @@ class HTTPConnectionHandler(object):
         self.open = True
         self.timer = None
 
-    def timers_up(self):
-        self.open = False
-        self.server.can_close.pop(self.sock.fileno(), None)
-        self.sock.close()
-
-    def restart_timer(self):
+    def cancel_timer(self):
         if self.timer:
             self.timer.cancel()
+
+    def start_timer(self):
         self.timer = greenhouse.Timer(
                 self.server.keepalive_timeout,
-                self.timers_up)
+                keepalive_timer_hits(self))
 
-    def handle(self):
+    def send_chunks(self, response_iterable):
+        length = 0
+        for chunk in response_iterable:
+            if not self.open:
+                break
+            self.sock.sendall(chunk)
+            length += len(chunk)
+            if length > self.yield_length:
+                greenhouse.pause()
+                length = 0
+
+    @contextlib.contextmanager
+    def no_timeout(self):
+        self.cancel_timer()
+        yield
+        self.start_timer()
+
+    def serve_one_request(self):
         sock = self.sock
         fd = sock.fileno()
-        self.restart_timer()
+
+        try:
+            # create the file object expecting no body. when we parse the
+            # request headers from it we will replace the expected body length
+            # with the Content-Length header, if any
+            rfile = feather.http.InputFile(sock, 0)
+            request = feather.http.parse_request(rfile)
+            if not request:
+                self.open = False
+                return
+
+            req_handler = self.request_handler(request, self.server, self)
+
+            with contextlib.nested(self.no_timeout(), server.unclosable(self)):
+                self.send_chunks(req_handler.respond())
+
+            connheader = request.headers.get('connection', '').lower()
+            if connheader == 'close' or (tuple(request.version) < (1, 1) and
+                    connheader != 'keep-alive'):
+                self.open = False
+        except feather.http.HTTPError, error:
+            if not self.open:
+                return
+            short, long = feather.http.responses[error.args[0]]
+            sock.sendall("HTTP/1.0 %d %s\r\n"
+                    "Connection: close\r\n"
+                    "Content-Length: %d\r\n"
+                    "Content-Type: text/plain\r\n\r\n"
+                    "%s" %
+                    (error.args[0], short, len(long), long))
+            self.open = False
+        except Exception, error:
+            self.open = False
+
+    def serve_all_requests(self):
+        self.start_timer()
+
         while self.open:
-            try:
-                # create the file object expecting no body. when we parse the
-                # request headers from it we will replace the expected body
-                # length with the Content-Length header, if any
-                rfile = feather.http.InputFile(sock, 0)
-                request = feather.http.parse_request(rfile)
+            self.serve_one_request()
 
-                req_handler = self.request_handler(request, self.server, self)
+        self.timer.cancel()
 
-                self.timer.cancel()
-                self.server.can_close.pop(fd, None)
-                for chunk in req_handler.respond():
-                    sock.sendall(chunk)
-                self.server.can_close[fd] = (sock, self)
-
-                self.restart_timer()
-
-                connheader = request.headers.get('connection', '').lower()
-                if connheader == 'close' or (tuple(request.version) < (1, 1)
-                                             and connheader != 'keep-alive'):
-                    self.open = False
-            except feather.http.HTTPError, err:
-                short, long = feather.http.responses[err.args[0]]
-                sock.sendall("HTTP/1.0 %d %s\r\n"
-                                  "Connection: close\r\n"
-                                  "Content-Length: %d\r\n"
-                                  "Content-Type: text/plain\r\n\r\n"
-                                  "%s" %
-                                  (err.args[0], short, len(long), long))
-                self.open = False
-            except:
-                self.open = False
-
-        self.server.can_close.pop(fd, None)
-        sock.close()
+        self.server.can_close.pop(self.sock.fileno(), None)
+        self.sock.close()
 
 class Server(object):
 
@@ -123,12 +152,15 @@ class Server(object):
     socket_type = socket.SOCK_STREAM
     listen_backlog = 128
 
-    keepalive_timeout = 30
+    keepalive_timeout = 10
+
+    WORKERS = 5
 
     def __init__(self, server_address):
         self.address = server_address
         self.is_setup = False
-        self._serversock = greenhouse.Socket(self.address_family,
+        self._serversock = greenhouse.Socket(
+                self.address_family,
                 self.socket_type)
         self._serversock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.openconns = 0
@@ -139,6 +171,12 @@ class Server(object):
         self._serversock.listen(self.listen_backlog)
         self.is_setup = True
 
+        #for i in xrange(self.WORKERS - 1):
+        #    if not os.fork():
+        #        # need a new epoll object in each child
+        #        greenhouse.poller.set()
+        #        break
+
     def serve(self):
         if not self.is_setup:
             self.setup()
@@ -146,9 +184,9 @@ class Server(object):
         while 1:
             try:
                 clientsock, clientaddr = self._serversock.accept()
-                conn_handler = self.connection_handler(clientsock, clientaddr,
-                                                       self)
-                greenhouse.schedule(conn_handler.handle)
+                conn_handler = self.connection_handler(
+                        clientsock, clientaddr, self)
+                greenhouse.schedule(conn_handler.serve_all_requests)
                 self.openconns += 1
             except socket.error, err:
                 if err.args[0] == errno.EMFILE:
@@ -173,4 +211,12 @@ class Server(object):
                 raise
             except KeyboardInterrupt:
                 self._serversock.close()
-                sys.exit()
+                #sys.exit()
+
+    @contextlib.contextmanager
+    def unclosable(self, conn_handler):
+        sock = conn_handler.sock
+        fd = sock.fileno()
+        self.can_close.pop(fd, None)
+        yield
+        self.can_close[fd] = (sock, conn_handler)
