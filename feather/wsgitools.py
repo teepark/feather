@@ -30,7 +30,7 @@ def make_environ(request, server_address):
     if 'content-length' in request.headers:
         length = int(request.headers['content-length'])
         environ['CONTENT_LENGTH'] = length
-        environ['wsgi.input']._length = length
+        environ['wsgi.input'].length = length
 
     if 'content-type' in request.headers:
         environ['CONTENT_TYPE'] = request.headers['content-type']

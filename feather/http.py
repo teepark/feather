@@ -36,14 +36,14 @@ class HTTPError(Exception): pass
 class InputFile(socket._fileobject):
     "a file object that doesn't attempt to read past Content-Length"
     def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
-        self._length = length
+        self.length = length
         super(InputFile, self).__init__(sock, mode, bufsize, close)
 
     def read(self, size=-1):
-        size = min(size, self._length)
-        if size < 0: size = self._length
+        size = min(size, self.length)
+        if size < 0: size = self.length
         rc = super(InputFile, self).read(size)
-        self._length -= max(self._length, len(rc))
+        self.length -= max(self.length, len(rc))
         return rc
 
     def readlines(self):
