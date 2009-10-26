@@ -154,7 +154,7 @@ class Server(object):
 
     keepalive_timeout = 10
 
-    WORKERS = 5
+    worker_count = 5
 
     def __init__(self, server_address):
         self.address = server_address
@@ -171,7 +171,7 @@ class Server(object):
         self._serversock.listen(self.listen_backlog)
         self.is_setup = True
 
-        #for i in xrange(self.WORKERS - 1):
+        #for i in xrange(self.worker_count - 1):
         #    if not os.fork():
         #        # need a new epoll object in each child
         #        greenhouse.poller.set()
