@@ -1,9 +1,0 @@
-comment: 'are we sure we want to do this? real browser/server parallelism is acheived
-
-  through multiple connections, each individual connection just does one request
-
-  at a time anyway.'
-created: 2009-07-08 08:18:29.593485
-creator: Travis Parker <travis.parker@gmail.com>
-id: 4a54b8c5-92d9053b
-title: commented
