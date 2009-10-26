@@ -53,11 +53,6 @@ class HTTPWSGIRequestHandler(object):
 
         return itertools.chain([head + firstresult], result)
 
-def keepalive_timer_hits(connection):
-    def timer_ends():
-        connection.open = False
-    return timer_ends
-
 class HTTPConnectionHandler(object):
 
     request_handler = HTTPWSGIRequestHandler
@@ -73,11 +68,16 @@ class HTTPConnectionHandler(object):
     def cancel_timer(self):
         if self.timer:
             self.timer.cancel()
+        self.timer = None
 
     def start_timer(self):
         self.timer = greenhouse.Timer(
                 self.server.keepalive_timeout,
-                keepalive_timer_hits(self))
+                self._timer_hit)
+
+    def _timer_hit(self):
+        self.open = False
+        self.timer = None
 
     def send_chunks(self, response_iterable):
         length = 0
@@ -139,7 +139,7 @@ class HTTPConnectionHandler(object):
         while self.open:
             self.serve_one_request()
 
-        self.timer.cancel()
+        self.cancel_timer()
 
         self.server.can_close.pop(self.sock.fileno(), None)
         self.sock.close()
