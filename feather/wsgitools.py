@@ -1,4 +1,3 @@
-import logging
 import sys
 try:
     import cStringIO as StringIO
@@ -7,8 +6,6 @@ except ImportError:
 
 
 __all__ = ["make_environ", "make_start_response"]
-
-logger = logging.getLogger("feather.wsgitools")
 
 def make_environ(request, server_address):
     environ = {

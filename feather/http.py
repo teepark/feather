@@ -3,7 +3,6 @@ import cgi
 import collections
 import httplib
 import itertools
-import logging
 import operator
 import socket
 import urlparse
@@ -14,8 +13,6 @@ except ImportError:
 
 
 __all__ = ["HTTPRequest", "InputFile", "parse_request"]
-
-logger = logging.getLogger("feather.httpparser")
 
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
@@ -64,27 +61,21 @@ def parse_request(rfile, header_class=httplib.HTTPMessage):
     version_string = version_string.rstrip()
 
     if method != method.upper():
-        logger.debug("bad HTTP method in request line")
         raise HTTPError("bad HTTP method: %s" % method)
 
     url = urlparse.urlsplit(path)
 
     if version_string[:5] != 'HTTP/':
-        logger.debug("bad HTTP version in request line")
         raise HTTPError("bad HTTP version: %s" % version_string)
 
     version = version_string[5:].split(".")
     if len(version) != 2 or not all(itertools.imap(
             operator.methodcaller("isdigit"), version)):
-        logger.debug("bad HTTP version in request line")
         raise HTTPError("bad HTTP version: %s" % version_string)
 
     version = map(int, version)
 
     headers = header_class(rfile)
-
-    logger.debug("read request line and headers from a request to %s" %
-                 url.path)
 
     return HTTPRequest(
             method=method,

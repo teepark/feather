@@ -1,6 +1,5 @@
 import errno
 import itertools
-import logging
 import random
 import socket
 import sys
@@ -13,8 +12,6 @@ import greenhouse
 
 
 __all__ = ["Server", "HTTPConnectionHandler", "HTTPWSGIRequestHandler"]
-
-logger = logging.getLogger("feather.server")
 
 class HTTPWSGIRequestHandler(object):
 
@@ -40,7 +37,6 @@ class HTTPWSGIRequestHandler(object):
                 break
         else:
             # if we aren't sending a Content-Length, close the connection
-            logger.debug("close connection b/c no Content-Length in response")
             self.connection_handler.open = False
 
         # don't put the headers in their own send() call, so prepend
@@ -79,7 +75,6 @@ class HTTPConnectionHandler(object):
                 self.timers_up)
 
     def handle(self):
-        logger.debug("greenlet with connection %d started" % id(self))
         sock = self.sock
         fd = sock.fileno()
         self.restart_timer()
@@ -90,8 +85,6 @@ class HTTPConnectionHandler(object):
                 # length with the Content-Length header, if any
                 rfile = feather.http.InputFile(sock, 0)
                 request = feather.http.parse_request(rfile)
-                logger.debug("got and parsed a request from connection %d" %
-                             id(self))
 
                 req_handler = self.request_handler(request, self.server, self)
 
@@ -106,13 +99,8 @@ class HTTPConnectionHandler(object):
                 connheader = request.headers.get('connection', '').lower()
                 if connheader == 'close' or (tuple(request.version) < (1, 1)
                                              and connheader != 'keep-alive'):
-                    if connheader == 'close':
-                        logger.debug("closing connection - Connection: close")
-                    else:
-                        logger.debug("HTTP<1.1 and no Connection: keep-alive")
                     self.open = False
             except feather.http.HTTPError, err:
-                logger.debug("sending an HTTP %d error response" % err.args[0])
                 short, long = feather.http.responses[err.args[0]]
                 sock.sendall("HTTP/1.0 %d %s\r\n"
                                   "Connection: close\r\n"
@@ -122,9 +110,6 @@ class HTTPConnectionHandler(object):
                                   (err.args[0], short, len(long), long))
                 self.open = False
             except:
-                logger.debug("HTTP 500 error response from an exception:")
-                logger.debug("".join("  %s" % line for line in
-                        traceback.format_exception(*sys.exc_info())))
                 self.open = False
 
         self.server.can_close.pop(fd, None)
@@ -150,7 +135,6 @@ class Server(object):
         self.can_close = {}
 
     def setup(self):
-        logger.info("binding listening socket to %r" % (self.address,))
         self._serversock.bind(self.address)
         self._serversock.listen(self.listen_backlog)
         self.is_setup = True
@@ -161,14 +145,11 @@ class Server(object):
         maxopenconns = None
         while 1:
             try:
-                logger.debug("listening for a new connection")
                 clientsock, clientaddr = self._serversock.accept()
                 conn_handler = self.connection_handler(clientsock, clientaddr,
                                                        self)
                 greenhouse.schedule(conn_handler.handle)
                 self.openconns += 1
-                logger.debug("passed off new connection %d to a new greenlet" %
-                             id(conn_handler))
             except socket.error, err:
                 if err.args[0] == errno.EMFILE:
                     maxopenconns = self.openconns
@@ -191,6 +172,5 @@ class Server(object):
 
                 raise
             except KeyboardInterrupt:
-                logger.info("KeyboardInterrupt caught, closing listen socket")
                 self._serversock.close()
                 sys.exit()
