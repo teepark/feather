@@ -99,6 +99,7 @@ class HTTPConnectionHandler(object):
     def serve_one_request(self):
         sock = self.sock
         fd = sock.fileno()
+        server = self.server
 
         try:
             # create the file object expecting no body. when we parse the
@@ -110,7 +111,7 @@ class HTTPConnectionHandler(object):
                 self.open = False
                 return
 
-            req_handler = self.request_handler(request, self.server, self)
+            req_handler = self.request_handler(request, server, self)
 
             with contextlib.nested(self.no_timeout(), server.unclosable(self)):
                 self.send_chunks(req_handler.respond())
