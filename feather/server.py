@@ -8,8 +8,7 @@ import sys
 import traceback
 import urlparse
 
-import feather.http
-import feather.wsgitools
+from feather import http, wsgitools
 import greenhouse
 
 
@@ -25,14 +24,13 @@ class HTTPWSGIRequestHandler(object):
         self.connection_handler = connection_handler
 
     def respond(self):
-        environ = feather.wsgitools.make_environ(self.request,
-                                                 self.server.address)
-        start_response, collector = feather.wsgitools.make_start_response()
+        environ = wsgitools.make_environ(self.request, self.server.address)
+        start_response, collector = wsgitools.make_start_response()
 
         try:
             result = self.wsgiapp(environ, start_response)
         except:
-            raise feather.http.HTTPError(500)
+            raise http.HTTPError(500)
 
         for key, value in collector['headers']:
             if key.lower() == 'content-length':
@@ -105,8 +103,8 @@ class HTTPConnectionHandler(object):
             # create the file object expecting no body. when we parse the
             # request headers from it we will replace the expected body length
             # with the Content-Length header, if any
-            rfile = feather.http.InputFile(sock, 0)
-            request = feather.http.parse_request(rfile)
+            rfile = http.InputFile(sock, 0)
+            request = http.parse_request(rfile)
             if not request:
                 self.open = False
                 return
@@ -120,10 +118,10 @@ class HTTPConnectionHandler(object):
             if connheader == 'close' or (tuple(request.version) < (1, 1) and
                     connheader != 'keep-alive'):
                 self.open = False
-        except feather.http.HTTPError, error:
+        except http.HTTPError, error:
             if not self.open:
                 return
-            short, long = feather.http.responses[error.args[0]]
+            short, long = http.responses[error.args[0]]
             sock.sendall("HTTP/1.0 %d %s\r\n"
                     "Connection: close\r\n"
                     "Content-Length: %d\r\n"
