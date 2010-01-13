@@ -210,7 +210,7 @@ class Server(object):
                 raise
             except KeyboardInterrupt:
                 self._serversock.close()
-                #sys.exit()
+                break
 
     @contextlib.contextmanager
     def unclosable(self, conn_handler):
