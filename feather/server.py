@@ -170,11 +170,11 @@ class Server(object):
         self._serversock.listen(self.listen_backlog)
         self.is_setup = True
 
-        #for i in xrange(self.worker_count - 1):
-        #    if not os.fork():
-        #        # need a new epoll object in each child
-        #        greenhouse.poller.set()
-        #        break
+        for i in xrange(self.worker_count - 1):
+            if not os.fork():
+                # need a new epoll object in each child
+                greenhouse.poller.set()
+                break
 
     def serve(self):
         if not self.is_setup:
