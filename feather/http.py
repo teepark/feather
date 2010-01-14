@@ -1,40 +1,49 @@
 import BaseHTTPServer
-import cgi
-import collections
 import httplib
-import itertools
-import operator
 import socket
 import urlparse
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
+
+from feather import connections, requests
 
 
-__all__ = ["HTTPRequest", "InputFile", "parse_request"]
-
+__all__ = ["InputFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
+        "HTTPConnection"]
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
+
 class HTTPRequest(object):
-    '''a simple dictionary proxy object, but some keys are expected by servers:
-
-    method
-    version
-    scheme
-    host
-    path
-    querystring
-    headers
-    rfile
+    '''a straightforward attribute holder that supports the following names:
+    * method
+    * version
+    * scheme
+    * host
+    * path
+    * querystring
+    * headers
+    * rfile
     '''
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    __slots__ = [
+            "method",
+            "version",
+            "scheme",
+            "host",
+            "path",
+            "querystring",
+            "headers",
+            "rfile"]
 
-class HTTPError(Exception): pass
+    def __init__(self, **kwargs):
+        for name in self.__slots__:
+            setattr(self, name, kwargs.get(name, None))
+
+
+class HTTPError(Exception):
+    pass
+
 
 class InputFile(socket._fileobject):
-    "a file object that doesn't attempt to read past Content-Length"
+    "a file object that doesn't attempt to read past a specified length"
+
     def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
         self.length = length
         super(InputFile, self).__init__(sock, mode, bufsize, close)
@@ -52,38 +61,50 @@ class InputFile(socket._fileobject):
             text = text[:-1]
         return map(lambda l: l + "\n", text.split("\n"))
 
-def parse_request(rfile, header_class=httplib.HTTPMessage):
-    rl = rfile.readline()
-    if rl in ('\n', '\r\n'):
-        rl = rfile.readline()
-    if not rl:
-        return None
 
-    method, path, version_string = rl.split(' ', 2)
-    version_string = version_string.rstrip()
+class HTTPRequestHandler(requests.RequestHandler):
+    pass
 
-    if method != method.upper() or not method.isalpha():
-        raise HTTPError(400, "bad HTTP method: %s" % method)
 
-    url = urlparse.urlsplit(path)
+class HTTPConnection(connections.TCPConnection):
 
-    if version_string[:5] != 'HTTP/':
-        raise HTTPError(400, "bad HTTP version: %s" % version_string)
+    header_class = httplib.HTTPMessage
 
-    try:
-        version = map(int, version_string[5:].split("."))
-    except ValueError:
-        raise HTTPError(400, "bad HTTP version: %s" % version_string)
+    def get_request(self):
+        rfile = InputFile(self.socket, 0)
+        request_line = rfile.readline()
 
-    headers = header_class(rfile)
+        if request_line in ('\n', '\r\n'):
+            request_line = rfile.readline()
 
-    return HTTPRequest(
-            method=method,
-            version=version,
-            scheme=url.scheme,
-            host=url.netloc,
-            path=url.path,
-            querystring=url.query,
-            fragment=url.fragment,
-            headers=headers,
-            rfile=rfile)
+        if not request_line:
+            return None
+
+        method, path, version_string = request_line.split(' ', 2)
+        version_string = version_string.rstrip()
+
+        if not method.isalpha() or method != method.upper():
+            raise HTTPError(400, "bad HTTP method: %r" % method)
+
+        url = urlparse.urlsplit(path)
+
+        if version_string[:5] != 'HTTP/':
+            raise HTTPError(400, "bad HTTP version: %r" % version_string)
+
+        try:
+            version = tuple(int(v) for v in version_string[5:].split("."))
+        except ValueError:
+            raise HTTPError(400, "bad HTTP version: %r" % version_string)
+
+        headers = self.header_class(rfile)
+
+        return HTTPRequest(
+                method=method,
+                version=version,
+                scheme=url.scheme,
+                host=url.netloc,
+                path=url.path,
+                querystring=url.query,
+                fragment=url.fragment,
+                headers=headers,
+                rfile=rfile)

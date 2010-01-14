@@ -6,6 +6,9 @@ import greenhouse
 from feather import connections
 
 
+__all__ = ["BaseServer", "TCPServer", "UDPServer"]
+
+
 class BaseServer(object):
     address_family = socket.AF_INET
     socket_protocol = socket.SOL_IP
@@ -27,6 +30,9 @@ class BaseServer(object):
             self.init_socket()
         self.socket.bind(self.address)
         self.is_setup = True
+
+    def serve(self):
+        raise NotImplementedError()
 
     @property
     def host(self):
@@ -52,7 +58,7 @@ class TCPServer(BaseServer):
 
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
-        self.keep_alive_only = {}
+        self.killable = {}
 
     def setup(self):
         super(TCPServer, self).setup()
@@ -63,7 +69,7 @@ class TCPServer(BaseServer):
                 client_sock,
                 client_address,
                 self.address,
-                self.keep_alive_only)
+                self.killable)
         greenhouse.schedule(handler.serve_all)
 
     def cleanup_disconnected(self):
@@ -81,11 +87,12 @@ class TCPServer(BaseServer):
                     self.connection(*(self.socket.accept()))
                 except socket.error, error:
                     if err.args[0] == errno.EMFILE:
-                        if not self.keep_alive_only:
-                            raise
+                        if not self.killable:
+                            greenhouse.pause_for(0.01)
+                            continue
 
-                        fd = random.choice(self.keep_alive_only.keys())
-                        unlucky = self.keep_alive_only.pop(fd)
+                        fd = random.choice(self.killable.keys())
+                        unlucky = self.killable.pop(fd)
                         unlucky.socket.close()
                         unlucky.closed = True
                     elif err.args[0] == errno.ENFILE:
