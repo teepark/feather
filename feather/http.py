@@ -4,10 +4,6 @@ import itertools
 import socket
 import traceback
 import urlparse
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 
 from feather import connections, requests
 
@@ -112,6 +108,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         try:
             if not handler:
                 self.error(405) # Method Not Allowed
+
             return handler(request)
 
         except self.RespondingRightNow, response_error:
@@ -128,6 +125,8 @@ class HTTPRequestHandler(requests.RequestHandler):
 
     def do_GET(self, request):
         raise NotImplementedError()
+
+    do_POST = do_PUT = do_HEAD = do_DELETE = do_GET
 
 
 class HTTPConnection(connections.TCPConnection):
