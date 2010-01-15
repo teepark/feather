@@ -95,7 +95,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         # we don't want the headers to count as a separate chunk, so
         # prefix them to the first body chunk and rebuild the iterable
         first_chunk, body = _strip_first(body_iterable)
-        return itertools.chain((head, first_chunk), body)
+        return itertools.chain((head + first_chunk,), body)
 
     def error(self, code):
         status, long_status = responses[code]
