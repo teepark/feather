@@ -140,7 +140,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         self.set_body(error.body)
 
     def format_response(self):
-        http_version = '.'.join(map(str, self.connection.http_version))
+        http_version = '.'.join(map(str, self._connection.http_version))
         code = getattr(self._code, 200)
         status, long_status = responses[code]
         if self._body is None:
@@ -152,7 +152,7 @@ class HTTPRequestHandler(requests.RequestHandler):
                 self.add_header('Content-Length', len(self._body))
             else:
                 self.add_header('Connection', 'close')
-                self.connection.closing = True
+                self._connection.closing = True
 
         headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
 
@@ -160,7 +160,7 @@ class HTTPRequestHandler(requests.RequestHandler):
                 http_version, code, status, headers)
 
         if isinstance(self._body, str):
-            return head + self._body
+            return (head + self._body,)
 
         # we don't want the headers to go in their own send() call, so prefix
         # them to the first item in the body iterable, then re-prefix that item
@@ -190,6 +190,23 @@ class HTTPConnection(connections.TCPConnection):
 
     keepalive_timeout = 30
 
+    def __init__(self, *args, **kwargs):
+        super(HTTPConnection, self).__init__(*args, **kwargs)
+        self.keepalive_timer = None
+
+    def _hit_timer(self):
+        self.closing = True
+        self._timer = None
+
+    def start_timer(self):
+        self.cancel_timer()
+        self._timer = greenhouse.Timer(self.keepalive_timeout, self._hit_timer)
+
+    def cancel_timer(self):
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
     def get_request(self):
         self.killable = False
         content = InputFile(self.socket, 0)
@@ -199,7 +216,6 @@ class HTTPConnection(connections.TCPConnection):
             request_line = content.readline()
 
         if not request_line:
-            self.killable = True
             return None
 
         method, path, version_string = request_line.split(' ', 2)
@@ -219,6 +235,9 @@ class HTTPConnection(connections.TCPConnection):
             raise HTTPError(400, "bad HTTP version: %r" % version_string)
 
         headers = self.header_class(content)
+
+        # we've got a request, kill keepalive-based timeouts
+        self.cancel_timer()
 
         return HTTPRequest(
                 method=method,

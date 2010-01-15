@@ -1,4 +1,5 @@
 from feather import requests
+import greenhouse
 
 
 __all__ = ["TCPConnection"]
@@ -34,9 +35,22 @@ class TCPConnection(object):
         else:
             self.killable_registry.pop(self.fileno, None)
 
+    def start_timer(self):
+        pass
+
+    def cancel_timer(self):
+        pass
+
     def serve_all(self):
+        self.start_timer()
+
         while not self.closing:
             request = self.get_request()
+            self.cancel_timer()
+
+            if request is None:
+                # indicates connection terminated by client
+                break
 
             handler = self.request_handler(request, client_address,
                     server_address, self)
@@ -45,15 +59,20 @@ class TCPConnection(object):
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
             response = handler.handle(request)
+            first = True
             for chunk in response:
+                if not first:
+                    greenhouse.pause()
                 self.socket.sendall(chunk)
-                # even if there is only one chunk (probably the usual case),
-                # we yield once between responses on the same connection
-                greenhouse.pause()
+                first = False
+
+            self.start_timer()
+            greenhouse.pause()
 
         self.cleanup()
 
     def cleanup(self):
+        self.cancel_timer()
         self.killable = False
         self.socket.close()
         self.closed = True
