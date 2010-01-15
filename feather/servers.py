@@ -105,3 +105,8 @@ class TCPServer(BaseServer):
 
 class UDPServer(BaseServer):
     socket_type = socket.SOCK_DGRAM
+
+    def serve(self):
+        if not self.is_setup:
+            self.setup()
+        ##XXX: finish this

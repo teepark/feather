@@ -10,6 +10,7 @@ from feather import connections, requests
 
 __all__ = ["InputFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
         "HTTPConnection"]
+
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
 
@@ -40,7 +41,10 @@ class HTTPRequest(object):
 
 
 class HTTPError(Exception):
-    pass
+    def __init__(self, code=500, body=None, headers=None):
+        self.code = code
+        self.body = body
+        self.headers = headers or []
 
 
 class InputFile(socket._fileobject):
@@ -81,47 +85,91 @@ class HTTPRequestHandler(requests.RequestHandler):
 
     TRACEBACK_DEBUG = False
 
-    head_string = '''HTTP/%(http_version)s %(code)d %(status)s
-        %(headers)s
+    def __init__(self, *args, **kwargs):
+        super(HTTPRequestHandler, self).__init__(*args, **kwargs)
+        self._headers = []
+        self._code = self._body = None
 
-        '''.replace('\n', '\r\n').replace('\r\n        ', '\r\n')
+    def set_code(self, code):
+        self._code = code
 
-    def format(self, code, status, headers, body_iterable):
-        headers = '\r\n'.join('%s: %s' % pair for pair in headers)
-        http_version = ".".join(map(str, self.connection.http_version))
+    def set_body(self, body):
+        self._body = body
 
-        head = self.head_string % locals()
+    def add_header(self, name, value):
+        self._headers.append((name, value))
 
-        # we don't want the headers to count as a separate chunk, so
-        # prefix them to the first body chunk and rebuild the iterable
-        first_chunk, body = _strip_first(body_iterable)
-        return itertools.chain((head + first_chunk,), body)
-
-    def error(self, code):
-        status, long_status = responses[code]
-        body = (long_status,)
-        raise HTTPError(code, status, [('content-type', 'text/plain')], body)
+    def add_headers(self, headers):
+        self._headers.extend(headers)
 
     def handle(self, request):
         handler = getattr(self, "do_%s" % request.method, None)
 
         try:
             if not handler:
-                self.error(405) # Method Not Allowed
+                raise HTTPError(405) # Method Not Allowed
 
-            return handler(request)
+            handler(request)
 
-        except self.RespondingRightNow, response_error:
-            return self.format(*(response_error.args))
+        except HTTPError, error:
+            self.translate_http_error(error)
 
-        except NotImplementedError:
-            self.error(405)
+        except NotImplemented:
+            self.translate_http_error(HTTPError(405))
 
         except:
-            status, long = responses[500]
-            body_text = self.TRACEBACK_DEBUG and traceback.format_exc() or long
-            return self.format(500, status, [('content-type', 'text/plain')],
-                    (body_text,))
+            if self.TRACEBACK_DEBUG:
+                self.set_body(traceback.format_exc())
+            self.set_code(500)
+            self.add_header('Content-type', 'text/plain')
+
+        return self.format_response()
+
+    def _have_header(self, header):
+        header = header.lower()
+        for name, value in self._headers:
+            if name.lower() == header:
+                return True
+        return False
+
+    def translate_http_error(error):
+        self.set_code(error.code)
+        if not self._have_header('content-type'):
+            self.add_header('Content-type', 'text/plain')
+        self.add_headers(error.headers)
+        self.set_body(error.body)
+
+    def format_response(self):
+        http_version = '.'.join(map(str, self.connection.http_version))
+        code = getattr(self._code, 200)
+        status, long_status = responses[code]
+        if self._body is None:
+            self._body = long_status
+
+        # we MUST either send a Content-Length or close the connection
+        if not self._have_header('content-length'):
+            if isinstance(self._body, str):
+                self.add_header('Content-Length', len(self._body))
+            else:
+                self.add_header('Connection', 'close')
+                self.connection.closing = True
+
+        headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
+
+        head = 'HTTP/%s %d %s\r\n%s\r\n\r\n' % (
+                http_version, code, status, headers)
+
+        if isinstance(self._body, str):
+            return head + self._body
+
+        # we don't want the headers to go in their own send() call, so prefix
+        # them to the first item in the body iterable, then re-prefix that item
+        iterator = iter(self._body)
+        try:
+            first_chunk = iterator.next()
+        except StopIteration:
+            first_chunk = ''
+        return itertools.chain([head + first_chunk], iterator)
 
     def do_GET(self, request):
         raise NotImplementedError()

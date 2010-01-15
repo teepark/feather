@@ -41,8 +41,8 @@ class TCPConnection(object):
             handler = self.request_handler(request, client_address,
                     server_address, self)
 
-            # the return value from handler.handler may be a generator or
-            # other lazy iterator, to allow for large responses that send
+            # the return value from handler.handle may be a generator or
+            # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
             response = handler.handle(request)
             for chunk in response:
