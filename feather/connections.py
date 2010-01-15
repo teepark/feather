@@ -52,8 +52,8 @@ class TCPConnection(object):
                 # indicates connection terminated by client
                 break
 
-            handler = self.request_handler(request, client_address,
-                    server_address, self)
+            handler = self.request_handler(
+                    self.client_address, self.server_address, self)
 
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send

@@ -1,5 +1,3 @@
-from collections import namedtuple
-import sys
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -10,6 +8,9 @@ import greenhouse
 
 
 class WSGIRequestHandler(http.HTTPRequestHandler):
+
+    wsgiapp = None
+
     def do_everything(self, request):
         environ = {
             'wsgi.version': (1, 0),
@@ -51,17 +52,26 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
             else:
                 exc_info = None
 
-            for i, c in enumerate(status[1:]):
-                if not status[:i].isdigit():
+            for i, c in enumerate(status):
+                if i and not status[:i].isdigit():
                     break
-            else:
-                i += 1
             self.set_code(int(status[:i - 1]))
             self.add_headers(headers)
 
             return write
 
-        self.wsgiapp(self, environ, start_response)
+        body = self.wsgiapp(environ, start_response)
+        prefix = collector[0].getvalue()
+
+        if prefix:
+            body_iterable = iter(body)
+            try:
+                first_chunk = body_iterable.next()
+            except StopIteration:
+                first_chunk = ''
+            body = itertools.chain((prefix + first_chunk,), body_iterable)
+
+        self.set_body(body)
 
     do_GET = do_POST = do_PUT = do_HEAD = do_DELETE = do_everything
 

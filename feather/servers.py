@@ -72,17 +72,12 @@ class TCPServer(BaseServer):
                 self.killable)
         greenhouse.schedule(handler.serve_all)
 
-    def cleanup_disconnected(self):
-        pass
-
     def serve(self):
         if not self.is_setup:
             self.setup()
 
         try:
             while not self.shutting_down:
-                self.cleanup_disconnected()
-
                 try:
                     self.connection(*(self.socket.accept()))
                 except socket.error, error:

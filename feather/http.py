@@ -6,6 +6,7 @@ import traceback
 import urlparse
 
 from feather import connections, requests
+import greenhouse
 
 
 __all__ = ["InputFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
@@ -83,7 +84,7 @@ def _strip_first(iterable):
 
 class HTTPRequestHandler(requests.RequestHandler):
 
-    TRACEBACK_DEBUG = False
+    traceback_debug = False
 
     def __init__(self, *args, **kwargs):
         super(HTTPRequestHandler, self).__init__(*args, **kwargs)
@@ -118,7 +119,7 @@ class HTTPRequestHandler(requests.RequestHandler):
             self.translate_http_error(HTTPError(405))
 
         except:
-            if self.TRACEBACK_DEBUG:
+            if self.traceback_debug:
                 self.set_body(traceback.format_exc())
             self.set_code(500)
             self.add_header('Content-type', 'text/plain')
@@ -141,7 +142,7 @@ class HTTPRequestHandler(requests.RequestHandler):
 
     def format_response(self):
         http_version = '.'.join(map(str, self._connection.http_version))
-        code = getattr(self._code, 200)
+        code = self._code or 200
         status, long_status = responses[code]
         if self._body is None:
             self._body = long_status
@@ -193,6 +194,7 @@ class HTTPConnection(connections.TCPConnection):
     def __init__(self, *args, **kwargs):
         super(HTTPConnection, self).__init__(*args, **kwargs)
         self.keepalive_timer = None
+        self._timer = None
 
     def _hit_timer(self):
         self.closing = True
