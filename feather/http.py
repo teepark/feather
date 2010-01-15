@@ -236,6 +236,9 @@ class HTTPConnection(connections.TCPConnection):
 
         headers = self.header_class(content)
 
+        if 'content-length' in headers:
+            content.length = int(headers['content-length'])
+
         # we've got a request, kill keepalive-based timeouts
         self.cancel_timer()
 
