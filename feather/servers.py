@@ -13,6 +13,7 @@ __all__ = ["BaseServer", "TCPServer", "UDPServer"]
 class BaseServer(object):
     address_family = socket.AF_INET
     socket_protocol = socket.SOL_IP
+    worker_count = 5
 
     def __init__(self, address):
         self.address = address
@@ -27,10 +28,21 @@ class BaseServer(object):
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def setup(self):
+        self.pre_fork_setup()
+        self.setup_children()
+        self.is_setup = True
+
+    def pre_fork_setup(self):
         if not hasattr(self, "socket"):
             self.init_socket()
         self.socket.bind(self.address)
-        self.is_setup = True
+
+    def setup_children(self):
+        for i in xrange(self.worker_count - 1):
+            if not os.fork():
+                # children will need their own epoll object
+                greenhouse.poller.set()
+                break # no grandchildren
 
     def serve(self):
         raise NotImplementedError()
@@ -56,20 +68,14 @@ class TCPServer(BaseServer):
     socket_type = socket.SOCK_STREAM
     listen_backlog = 128
     connection_handler = connections.TCPConnection
-    worker_count = 5
 
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
         self.killable = {}
 
-    def setup(self):
-        super(TCPServer, self).setup()
+    def pre_fork_setup(self):
+        super(TCPServer, self).pre_fork_setup()
         self.socket.listen(self.listen_backlog)
-
-        for i in xrange(self.worker_count - 1):
-            if not os.fork():
-                greenhouse.poller.set()
-                break
 
     def connection(self, client_sock, client_address):
         handler = self.connection_handler(
