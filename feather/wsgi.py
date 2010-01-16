@@ -89,6 +89,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
     def __getattr__(self, name):
         if name.startswith("do_"):
             return do_everything
+        raise AttributeError(name)
 
 
 def serve(address, app, debug=False):
