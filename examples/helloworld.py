@@ -2,7 +2,7 @@
 
 import optparse
 
-import feather
+import feather.wsgi
 
 
 DEFAULT_HOST = ""
@@ -21,4 +21,4 @@ if __name__ == "__main__":
     parser.add_option("-P", "--port", type="int", default=DEFAULT_PORT)
 
     options, args = parser.parse_args()
-    feather.serve_wsgi_app((options.host, options.port), wsgiapp)
+    feather.wsgi.serve((options.host, options.port), wsgiapp, debug=True)

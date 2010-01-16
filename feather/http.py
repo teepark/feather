@@ -1,40 +1,56 @@
 import BaseHTTPServer
-import cgi
-import collections
 import httplib
 import itertools
-import operator
 import socket
+import traceback
 import urlparse
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
+
+from feather import connections, requests
+import greenhouse
 
 
-__all__ = ["HTTPRequest", "InputFile", "parse_request"]
+__all__ = ["InputFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
+        "HTTPConnection"]
 
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
+
 class HTTPRequest(object):
-    '''a simple dictionary proxy object, but some keys are expected by servers:
-
-    method
-    version
-    scheme
-    host
-    path
-    querystring
-    headers
-    rfile
+    '''a straightforward attribute holder that supports the following names:
+    * method
+    * version
+    * scheme
+    * host
+    * path
+    * querystring
+    * headers
+    * content
     '''
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
+    __slots__ = [
+            "method",
+            "version",
+            "scheme",
+            "host",
+            "path",
+            "querystring",
+            "headers",
+            "content"]
 
-class HTTPError(Exception): pass
+    def __init__(self, **kwargs):
+        for name in self.__slots__:
+            setattr(self, name, kwargs.get(name, None))
+
+
+class HTTPError(Exception):
+    def __init__(self, code=500, body=None, headers=None):
+        self.code = code
+        self.body = body
+        self.headers = headers or []
+
 
 class InputFile(socket._fileobject):
-    "a file object that doesn't attempt to read past Content-Length"
+    "a file object that doesn't attempt to read past a specified length"
+
     def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
         self.length = length
         super(InputFile, self).__init__(sock, mode, bufsize, close)
@@ -50,40 +66,203 @@ class InputFile(socket._fileobject):
         text = self.read()
         if text[-1] == "\n":
             text = text[:-1]
-        return map(lambda l: l + "\n", text.split("\n"))
+        return map(self._line_mapper, text.split("\n"))
 
-def parse_request(rfile, header_class=httplib.HTTPMessage):
-    rl = rfile.readline()
-    if rl in ('\n', '\r\n'):
-        rl = rfile.readline()
-    if not rl:
-        return None
+    @staticmethod
+    def _line_mapper(l):
+        return l + '\n'
 
-    method, path, version_string = rl.split(' ', 2)
-    version_string = version_string.rstrip()
 
-    if method != method.upper() or not method.isalpha():
-        raise HTTPError(400, "bad HTTP method: %s" % method)
-
-    url = urlparse.urlsplit(path)
-
-    if version_string[:5] != 'HTTP/':
-        raise HTTPError(400, "bad HTTP version: %s" % version_string)
-
+def _strip_first(iterable):
+    iterator = iter(iterable)
     try:
-        version = map(int, version_string[5:].split("."))
-    except ValueError:
-        raise HTTPError(400, "bad HTTP version: %s" % version_string)
+        first = iterator.next()
+    except StopIteration:
+        first = ''
+    return first, iterator
 
-    headers = header_class(rfile)
 
-    return HTTPRequest(
-            method=method,
-            version=version,
-            scheme=url.scheme,
-            host=url.netloc,
-            path=url.path,
-            querystring=url.query,
-            fragment=url.fragment,
-            headers=headers,
-            rfile=rfile)
+class HTTPRequestHandler(requests.RequestHandler):
+
+    traceback_debug = False
+
+    def __init__(self, *args, **kwargs):
+        super(HTTPRequestHandler, self).__init__(*args, **kwargs)
+        self._headers = []
+        self._code = self._body = None
+
+    def set_code(self, code):
+        self._code = code
+
+    def set_body(self, body):
+        self._body = body
+
+    def add_header(self, name, value):
+        self._headers.append((name, value))
+
+    def add_headers(self, headers):
+        self._headers.extend(headers)
+
+    def handle(self, request):
+        handler = getattr(self, "do_%s" % request.method, None)
+
+        try:
+            if not handler:
+                raise HTTPError(405) # Method Not Allowed
+
+            handler(request)
+
+        except HTTPError, error:
+            self.translate_http_error(error)
+
+        except NotImplemented:
+            self.translate_http_error(HTTPError(405))
+
+        except:
+            if self.traceback_debug:
+                self.set_body(traceback.format_exc())
+            self.set_code(500)
+            self.add_header('Content-type', 'text/plain')
+
+        return self.format_response()
+
+    def _have_header(self, header):
+        header = header.lower()
+        for name, value in self._headers:
+            if name.lower() == header:
+                return True
+        return False
+
+    def translate_http_error(error):
+        self.set_code(error.code)
+        if not self._have_header('content-type'):
+            self.add_header('Content-type', 'text/plain')
+        self.add_headers(error.headers)
+        self.set_body(error.body)
+
+    def format_response(self):
+        http_version = '.'.join(map(str, self._connection.http_version))
+        code = self._code or 200
+        status, long_status = responses[code]
+        if self._body is None:
+            self._body = long_status
+
+        # we MUST either send a Content-Length or close the connection
+        if not self._have_header('content-length'):
+            if isinstance(self._body, str):
+                self.add_header('Content-Length', len(self._body))
+            else:
+                self.add_header('Connection', 'close')
+                self._connection.closing = True
+
+        headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
+
+        head = 'HTTP/%s %d %s\r\n%s\r\n\r\n' % (
+                http_version, code, status, headers)
+
+        if isinstance(self._body, str):
+            return (head + self._body,)
+
+        # we don't want the headers to go in their own send() call, so prefix
+        # them to the first item in the body iterable, then re-prefix that item
+        iterator = iter(self._body)
+        try:
+            first_chunk = iterator.next()
+        except StopIteration:
+            first_chunk = ''
+        return itertools.chain([head + first_chunk], iterator)
+
+    def do_GET(self, request):
+        raise NotImplementedError()
+
+    do_POST = do_PUT = do_HEAD = do_DELETE = do_GET
+
+
+class HTTPConnection(connections.TCPConnection):
+
+    request_handler = HTTPRequestHandler
+
+    # header-parsing class from the stdlib
+    header_class = httplib.HTTPMessage
+
+    # we don't support changing the HTTP version inside a connection,
+    # because that's just silliness
+    http_version = (1, 1)
+
+    keepalive_timeout = 30
+
+    def __init__(self, *args, **kwargs):
+        super(HTTPConnection, self).__init__(*args, **kwargs)
+        self.keepalive_timer = None
+        self._timer = None
+
+    def _hit_timer(self):
+        self.closing = True
+        self._timer = None
+
+    def start_timer(self):
+        self.cancel_timer()
+        self._timer = greenhouse.Timer(self.keepalive_timeout, self._hit_timer)
+
+    def cancel_timer(self):
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+    def get_request(self):
+        try:
+            self.killable = False
+            self.socket.settimeout(self.keepalive_timeout)
+            content = InputFile(self.socket, 0)
+            request_line = content.readline()
+
+            if request_line in ('\n', '\r\n'):
+                request_line = content.readline()
+
+            if not request_line:
+                return None
+
+            method, path, version_string = request_line.split(' ', 2)
+            version_string = version_string.rstrip()
+
+            if not method.isalpha() or method != method.upper():
+                return None
+
+            url = urlparse.urlsplit(path)
+
+            if version_string[:5] != 'HTTP/':
+                return None
+
+            try:
+                version = tuple(int(v) for v in version_string[5:].split("."))
+            except ValueError:
+                return None
+
+            headers = self.header_class(content)
+
+            if version < (1, 1):
+                self.closing = True
+            else:
+                for name, val in headers.items():
+                    if name.lower() == 'connection' and val.lower() == 'close':
+                        sef.closing = True
+                        break
+
+            if 'content-length' in headers:
+                content.length = int(headers['content-length'])
+
+            self.cancel_timer()
+
+            return HTTPRequest(
+                    method=method,
+                    version=version,
+                    scheme=url.scheme,
+                    host=url.netloc,
+                    path=url.path,
+                    querystring=url.query,
+                    fragment=url.fragment,
+                    headers=headers,
+                    content=content)
+
+        except:
+            return None
