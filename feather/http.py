@@ -210,47 +210,51 @@ class HTTPConnection(connections.TCPConnection):
             self._timer = None
 
     def get_request(self):
-        self.killable = False
-        content = InputFile(self.socket, 0)
-        request_line = content.readline()
-
-        if request_line in ('\n', '\r\n'):
+        try:
+            self.killable = False
+            self.socket.settimeout(self.keepalive_timeout)
+            content = InputFile(self.socket, 0)
             request_line = content.readline()
 
-        if not request_line:
+            if request_line in ('\n', '\r\n'):
+                request_line = content.readline()
+
+            if not request_line:
+                return None
+
+            method, path, version_string = request_line.split(' ', 2)
+            version_string = version_string.rstrip()
+
+            if not method.isalpha() or method != method.upper():
+                return None
+
+            url = urlparse.urlsplit(path)
+
+            if version_string[:5] != 'HTTP/':
+                return None
+
+            try:
+                version = tuple(int(v) for v in version_string[5:].split("."))
+            except ValueError:
+                return None
+
+            headers = self.header_class(content)
+
+            if 'content-length' in headers:
+                content.length = int(headers['content-length'])
+
+            self.cancel_timer()
+
+            return HTTPRequest(
+                    method=method,
+                    version=version,
+                    scheme=url.scheme,
+                    host=url.netloc,
+                    path=url.path,
+                    querystring=url.query,
+                    fragment=url.fragment,
+                    headers=headers,
+                    content=content)
+
+        except:
             return None
-
-        method, path, version_string = request_line.split(' ', 2)
-        version_string = version_string.rstrip()
-
-        if not method.isalpha() or method != method.upper():
-            raise HTTPError(400, "bad HTTP method: %r" % method)
-
-        url = urlparse.urlsplit(path)
-
-        if version_string[:5] != 'HTTP/':
-            raise HTTPError(400, "bad HTTP version: %r" % version_string)
-
-        try:
-            version = tuple(int(v) for v in version_string[5:].split("."))
-        except ValueError:
-            raise HTTPError(400, "bad HTTP version: %r" % version_string)
-
-        headers = self.header_class(content)
-
-        if 'content-length' in headers:
-            content.length = int(headers['content-length'])
-
-        # we've got a request, kill keepalive-based timeouts
-        self.cancel_timer()
-
-        return HTTPRequest(
-                method=method,
-                version=version,
-                scheme=url.scheme,
-                host=url.netloc,
-                path=url.path,
-                querystring=url.query,
-                fragment=url.fragment,
-                headers=headers,
-                content=content)

@@ -76,3 +76,6 @@ class TCPConnection(object):
         self.killable = False
         self.socket.close()
         self.closed = True
+
+    def __del__(self):
+        self.cleanup()

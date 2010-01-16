@@ -94,6 +94,8 @@ class TCPServer(BaseServer):
                         greenhouse.pause_for(0.01)
                     else:
                         raise
+        except KeyboardInterrupt:
+            pass
         finally:
             self.socket.close()
 

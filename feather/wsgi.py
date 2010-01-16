@@ -2,12 +2,23 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from StringIO import StringIO
+import inspect
 
 from feather import http, servers
 import greenhouse
 
 
+# the hoops one has to jump through to let the 'wsgiapp'
+# attribute be set on a class without it becoming a bound method
+class _wsgiapp_callable(type):
+    def __new__(metacls, name, bases, attrs):
+        attrs['_wsgiapp_container'] = (attrs['wsgiapp'],)
+        return super(_wsgiapp_callable, metacls).__new__(
+                metacls, name, bases, attrs)
+
+
 class WSGIRequestHandler(http.HTTPRequestHandler):
+    __metaclass__ = _wsgiapp_callable
 
     wsgiapp = None
 
@@ -60,7 +71,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
 
             return write
 
-        body = self.wsgiapp(environ, start_response)
+        body = self._wsgiapp_container[0](environ, start_response)
         prefix = collector[0].getvalue()
 
         if prefix:
@@ -80,9 +91,10 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
             return do_everything
 
 
-def serve(address, app):
+def serve(address, app, debug=False):
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
+        traceback_debug = debug
 
     class Connection(http.HTTPConnection):
         request_handler = RequestHandler
