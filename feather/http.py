@@ -240,6 +240,14 @@ class HTTPConnection(connections.TCPConnection):
 
             headers = self.header_class(content)
 
+            if version < (1, 1):
+                self.closing = True
+            else:
+                for name, val in headers.items():
+                    if name.lower() == 'connection' and val.lower() == 'close':
+                        sef.closing = True
+                        break
+
             if 'content-length' in headers:
                 content.length = int(headers['content-length'])
 
