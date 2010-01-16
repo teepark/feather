@@ -1,4 +1,5 @@
 import errno
+import os
 import random
 import socket
 
@@ -55,6 +56,7 @@ class TCPServer(BaseServer):
     socket_type = socket.SOCK_STREAM
     listen_backlog = 128
     connection_handler = connections.TCPConnection
+    worker_count = 5
 
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
@@ -63,6 +65,11 @@ class TCPServer(BaseServer):
     def setup(self):
         super(TCPServer, self).setup()
         self.socket.listen(self.listen_backlog)
+
+        for i in xrange(self.worker_count - 1):
+            if not os.fork():
+                greenhouse.poller.set()
+                break
 
     def connection(self, client_sock, client_address):
         handler = self.connection_handler(
@@ -94,7 +101,6 @@ class TCPServer(BaseServer):
                         greenhouse.pause_for(0.01)
                     else:
                         raise
-                greenhouse.pause()
         except KeyboardInterrupt:
             pass
         finally:
