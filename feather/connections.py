@@ -6,6 +6,28 @@ __all__ = ["TCPConnection"]
 
 
 class TCPConnection(object):
+    """abstract class for handling a single TCP client connection
+
+    to use, you must override get_request() and the request_handler attribute
+
+    get_request() will need to return an object that represents a single
+    request, which will be passed into the request handler's handle() method
+
+    the request_handler attribute should be set to a concrete subclass of
+    feather.requests.RequestHandler
+
+    a few more utility methods can be overridden as well:
+
+    start_timer() will be called when the connection is no longer in a state
+    where it is between a request and a response
+
+    cancel_timer() will then be called once a request is received. (the
+    start/cancel timer hook was required in feather.http.HTTPConnection to
+    implement keep-alive)
+
+    cleanup() to do more connection cleanup. be sure to call the super method
+    for this one, as TCPConnection.cleanup is needed
+    """
 
     # set this attribute to something that implements handle()
     request_handler = requests.RequestHandler
@@ -22,6 +44,7 @@ class TCPConnection(object):
 
     # be sure and implement this in concrete subclasses
     def get_request(self):
+        "override to return an object representing a single request"
         raise NotImplementedError()
 
     @property
@@ -36,9 +59,11 @@ class TCPConnection(object):
             self.killable_registry.pop(self.fileno, None)
 
     def start_timer(self):
+        "override me. will be called to set a keep-alive (or similar) timer"
         pass
 
     def cancel_timer(self):
+        "override me. will be called to cancel the timer from start_timer()"
         pass
 
     def serve_all(self):
@@ -72,10 +97,8 @@ class TCPConnection(object):
         self.cleanup()
 
     def cleanup(self):
+        "override (call the super method) to add to connection cleanup"
         self.cancel_timer()
         self.killable = False
         self.socket.close()
         self.closed = True
-
-    def __del__(self):
-        self.cleanup()

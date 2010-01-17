@@ -17,14 +17,33 @@ responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
 class HTTPRequest(object):
     '''a straightforward attribute holder that supports the following names:
-    * method
-    * version
-    * scheme
-    * host
-    * path
-    * querystring
-    * headers
-    * content
+
+    method
+        GET, POST, PUT, HEAD, DELETE, etc.
+
+    version
+        the HTTP version as a tuple of integers. generally (1, 0) or (1, 1)
+
+    scheme
+        string of either "http" or "https"
+
+    host
+        the server host - tried to get first from Host: header, then from host
+        in the path, then (if the path was relative) takes it from the server
+
+    path
+        the accessed path from the first line of the request
+
+    querystring
+        the full querystring from the path
+
+    headers
+        an object representing the HTTP headers. unless overridden,
+        HTTPConnection provides an instance of httplib.HTTPMessage
+
+    content
+        a file-like object from which you can read[line[s]]() the body of the
+        request
     '''
     __slots__ = [
             "method",
@@ -42,6 +61,9 @@ class HTTPRequest(object):
 
 
 class HTTPError(Exception):
+    """raise this in an HTTPRequestHandler instance/subclass to bail out and
+    send an error response
+    """
     def __init__(self, code=500, body=None, headers=None):
         self.code = code
         self.body = body
@@ -49,8 +71,10 @@ class HTTPError(Exception):
 
 
 class InputFile(socket._fileobject):
-    "a file object that doesn't attempt to read past a specified length"
+    """a file object that doesn't attempt to read past a specified length.
 
+    unless overridden, HTTPConnection uses this as request.content
+    """
     def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
         self.length = length
         super(InputFile, self).__init__(sock, mode, bufsize, close)
@@ -83,7 +107,29 @@ def _strip_first(iterable):
 
 
 class HTTPRequestHandler(requests.RequestHandler):
+    """the main application entry-point, this class handles a single request
+    
+    subclass this and provide do_METHOD methods for every HTTP method you wish
+    to support (do_GET and do_POST is a good place to start).
 
+    those methods should call methods provided by HTTPRequestHandler to set the
+    proper response:
+
+    set_code(code)
+        the integer HTTP response code (200 for successful)
+
+    set_body(body)
+        the argument may be either a string or an iterable of strings. in the
+        latter case it is acceptable for it to be a generator or other lazy
+        iterator to allow a long response to be generated and sent gradually
+        without blocking the whole server process.
+
+    add_header(name, value)
+        add a single response header
+
+    add_headers(headers)
+        add a group of headers.  provide two-tuples of (name, value) pairs
+    """
     traceback_debug = False
 
     def __init__(self, *args, **kwargs):
@@ -126,10 +172,11 @@ class HTTPRequestHandler(requests.RequestHandler):
 
         return self.format_response()
 
-    def _have_header(self, header):
+    def _have_header(self, header, required_value=None):
         header = header.lower()
         for name, value in self._headers:
-            if name.lower() == header:
+            if name.lower() == header and \
+                    (required_value is None or value == required_value):
                 return True
         return False
 
@@ -147,13 +194,21 @@ class HTTPRequestHandler(requests.RequestHandler):
         if self._body is None:
             self._body = long_status
 
+        closed = self._have_header('connection', 'close')
+
         # we MUST either send a Content-Length or close the connection
         if not self._have_header('content-length'):
             if isinstance(self._body, str):
                 self.add_header('Content-Length', len(self._body))
             else:
-                self.add_header('Connection', 'close')
+                if not closed:
+                    closed = True
+                    self.add_header('Connection', 'close')
                 self._connection.closing = True
+
+        if not self._connection.keepalive_timeout and not closed:
+            self.add_header('Connection', 'close')
+            close = True
 
         headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
 
@@ -179,7 +234,27 @@ class HTTPRequestHandler(requests.RequestHandler):
 
 
 class HTTPConnection(connections.TCPConnection):
+    """TCPConnection that speaks HTTP
+    
+    there is not much overriding to be done at this level, but there are a few
+    attributes that might be useful to change:
 
+    request_handler
+        this must be your HTTPRequestHandler subclass
+
+    keepalive_timeout
+        time in seconds before an inactive connection is closed. set to 0 to
+        disable keepalive entirely
+
+    http_version
+        HTTP version number for responses as a tuple of ints. default is (1, 1)
+
+    header_class
+        callable that accepts a file-like object and returns a representation
+        of the HTTP headers which will be used as request.headers. must not
+        read more input than necessary. the default of httplib.HTTPMessage is a
+        good one
+    """
     request_handler = HTTPRequestHandler
 
     # header-parsing class from the stdlib
@@ -202,10 +277,12 @@ class HTTPConnection(connections.TCPConnection):
 
     def start_timer(self):
         self.cancel_timer()
-        self._timer = greenhouse.Timer(self.keepalive_timeout, self._hit_timer)
+        if self.keepalive_timeout:
+            self._timer = greenhouse.Timer(self.keepalive_timeout,
+                    self._hit_timer)
 
     def cancel_timer(self):
-        if self._timer:
+        if self.keepalive_timeout and self._timer:
             self._timer.cancel()
             self._timer = None
 
@@ -240,6 +317,9 @@ class HTTPConnection(connections.TCPConnection):
 
             headers = self.header_class(content)
 
+            scheme = url.scheme or "http"
+            host = headers.get('host') or url.netloc or self.server_address
+
             if version < (1, 1):
                 self.closing = True
             else:
@@ -256,8 +336,8 @@ class HTTPConnection(connections.TCPConnection):
             return HTTPRequest(
                     method=method,
                     version=version,
-                    scheme=url.scheme,
-                    host=url.netloc,
+                    scheme=scheme,
+                    host=host,
                     path=url.path,
                     querystring=url.query,
                     fragment=url.fragment,

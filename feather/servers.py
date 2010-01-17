@@ -1,6 +1,5 @@
 import errno
 import os
-import random
 import socket
 
 import greenhouse
@@ -11,6 +10,10 @@ __all__ = ["BaseServer", "TCPServer", "UDPServer"]
 
 
 class BaseServer(object):
+    """purely abstract server class.
+
+    subclass TCPServer or UDPServer instead (or just use them as they are).
+    """
     address_family = socket.AF_INET
     socket_protocol = socket.SOL_IP
     worker_count = 5
@@ -65,8 +68,27 @@ class BaseServer(object):
 
 
 class TCPServer(BaseServer):
+    """the master TCP server
+
+    to use, create an instance with a (host, port) address pair, customize it
+    by setting certain attributes, and then just call its serve() method.
+
+    * connection_handler is an attribute that should be a subclass of
+      TCPConnection that will handle individual client connections. each
+      instance of the connection_handler (for each connection) will be run in
+      its own coroutine.
+
+    * worker_count is the number of processes to have run the server. it will
+      fork worker_count - 1 children, as the original process itself acts as
+      a worker. it defaults to 5, so if your application is utilizing
+      module-global memory be sure to set it to 1.
+
+    * listen_backlog is the number of connections to allow to queue up when the
+      server can't accept them fast enough. its default is the maximum allowed
+      by the system.
+    """
     socket_type = socket.SOCK_STREAM
-    listen_backlog = 128
+    listen_backlog = socket.SOMAXCONN
     connection_handler = connections.TCPConnection
 
     def __init__(self, *args, **kwargs):
@@ -77,33 +99,43 @@ class TCPServer(BaseServer):
         super(TCPServer, self).pre_fork_setup()
         self.socket.listen(self.listen_backlog)
 
-    def connection(self, client_sock, client_address):
-        handler = self.connection_handler(
-                client_sock,
-                client_address,
-                self.address,
-                self.killable)
-        greenhouse.schedule(handler.serve_all)
-
     def serve(self):
+        """run the server at the provided address forever.
+
+        this method will remove the calling greenlet (generally the main
+        greenlet) from the scheduler, so don't expect anything else to run in
+        the calling greenlet until the server has been shut down.
+        """
         if not self.is_setup:
             self.setup()
 
         try:
             while not self.shutting_down:
                 try:
-                    self.connection(*(self.socket.accept()))
+                    client_sock, client_address = self.socket.accept()
+                    handler = self.connection_handler(
+                            client_sock,
+                            client_address,
+                            self.address,
+                            self.killable)
+                    greenhouse.schedule(handler.serve_all)
                 except socket.error, error:
                     if err.args[0] == errno.EMFILE:
+                        # max open connections for the process
                         if not self.killable:
+                            # if all connections are active, just wait a
+                            # while before accepting a new connection again
                             greenhouse.pause_for(0.01)
                             continue
 
-                        fd = random.choice(self.killable.keys())
-                        unlucky = self.killable.pop(fd)
-                        unlucky.socket.close()
-                        unlucky.closed = True
+                        # close all the connections that are
+                        # only open for keep-alive anyway
+                        for fd in self.killable.keys():
+                            handler = self.killable.pop(fd)
+                            handler.socket.close()
+                            handler.closed = True
                     elif err.args[0] == errno.ENFILE:
+                        # max open connections for the machine
                         greenhouse.pause_for(0.01)
                     else:
                         raise

@@ -8,6 +8,9 @@ from feather import http, servers
 import greenhouse
 
 
+__all__ = ["WSGIRequestHandler", "serve"]
+
+
 # the hoops one has to jump through to let the 'wsgiapp'
 # attribute be set on a class without it becoming a bound method
 class _wsgiapp_callable(type):
@@ -18,6 +21,11 @@ class _wsgiapp_callable(type):
 
 
 class WSGIRequestHandler(http.HTTPRequestHandler):
+    """a fully implemented HTTPRequestHandler, ready to run a WSGI app.
+    
+    subclass and override the wsgiapp attribute to your wsgi application and
+    you are off to the races.
+    """
     __metaclass__ = _wsgiapp_callable
 
     wsgiapp = None
@@ -93,6 +101,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
 
 
 def serve(address, app, debug=False):
+    "shortcut function to serve a wsgiapp on an address"
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
         traceback_debug = debug
