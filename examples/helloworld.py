@@ -9,7 +9,7 @@ DEFAULT_HOST = ""
 DEFAULT_PORT = 9000
 
 def wsgiapp(environ, start_response):
-    start_response("200, OK", [
+    start_response("200 OK", [
             ('content-type', 'text/plain'),
             ('content-length', '13')])
     return ["Hello, World!"]

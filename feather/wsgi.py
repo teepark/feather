@@ -105,10 +105,10 @@ def serve(address, app, debug=False, timeout=30):
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
         traceback_debug = debug
-        keepalive_timeout = timeout
 
     class Connection(http.HTTPConnection):
         request_handler = RequestHandler
+        keepalive_timeout = timeout
 
     server = servers.TCPServer(address)
     server.connection_handler = Connection

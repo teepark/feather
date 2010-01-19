@@ -97,23 +97,14 @@ class InputFile(socket._fileobject):
         return l + '\n'
 
 
-def _strip_first(iterable):
-    iterator = iter(iterable)
-    try:
-        first = iterator.next()
-    except StopIteration:
-        first = ''
-    return first, iterator
-
-
 class HTTPRequestHandler(requests.RequestHandler):
     """the main application entry-point, this class handles a single request
     
     subclass this and provide do_METHOD methods for every HTTP method you wish
     to support (do_GET and do_POST is a good place to start).
 
-    those methods should call methods provided by HTTPRequestHandler to set the
-    proper response:
+    do_* methods should call methods provided by HTTPRequestHandler to supply
+    the proper response:
 
     set_code(code)
         the integer HTTP response code (200 for successful)
@@ -196,6 +187,11 @@ class HTTPRequestHandler(requests.RequestHandler):
 
         closed = self._have_header('connection', 'close')
 
+        # any time the connection is about to be closed, send the header
+        if self._connection.closing and not closed:
+            self.add_header('Connection', 'close')
+            closed = True
+
         # we MUST either send a Content-Length or close the connection
         if not self._have_header('content-length'):
             if isinstance(self._body, str):
@@ -235,6 +231,10 @@ class HTTPRequestHandler(requests.RequestHandler):
 
 class HTTPConnection(connections.TCPConnection):
     """TCPConnection that speaks HTTP
+
+    the main point of this class is to implement get_request so that it parses
+    an HTTP request from the socket so the request_handler's handle() method
+    receives an instance of HTTPRequest.
     
     there is not much overriding to be done at this level, but there are a few
     attributes that might be useful to change:
@@ -301,16 +301,16 @@ class HTTPConnection(connections.TCPConnection):
 
             headers = self.header_class(content)
 
-            scheme = url.scheme or "http"
-            host = headers.get('host') or url.netloc or self.server_address
-
             if version < (1, 1):
                 self.closing = True
             else:
                 for name, val in headers.items():
                     if name.lower() == 'connection' and val.lower() == 'close':
-                        sef.closing = True
+                        self.closing = True
                         break
+
+            scheme = url.scheme or "http"
+            host = headers.get('host') or url.netloc or self.server_address
 
             if 'content-length' in headers:
                 content.length = int(headers['content-length'])
