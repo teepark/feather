@@ -32,7 +32,8 @@ class BaseServer(object):
 
     def setup(self):
         self.pre_fork_setup()
-        self.setup_children()
+        self.fork_children()
+        self.post_fork_setup()
         self.is_setup = True
 
     def pre_fork_setup(self):
@@ -40,7 +41,10 @@ class BaseServer(object):
             self.init_socket()
         self.socket.bind(self.address)
 
-    def setup_children(self):
+    def post_fork_setup(self):
+        pass
+
+    def fork_children(self):
         for i in xrange(self.worker_count - 1):
             if not os.fork():
                 # children will need their own epoll object

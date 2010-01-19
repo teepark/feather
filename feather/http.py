@@ -268,6 +268,8 @@ class HTTPConnection(connections.TCPConnection):
 
     def __init__(self, *args, **kwargs):
         super(HTTPConnection, self).__init__(*args, **kwargs)
+
+    def in_coro_setup(self):
         if self.keepalive_timeout:
             self.socket.settimeout(self.keepalive_timeout)
 
