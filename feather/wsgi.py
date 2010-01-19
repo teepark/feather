@@ -100,11 +100,12 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
         raise AttributeError(name)
 
 
-def serve(address, app, debug=False):
+def serve(address, app, debug=False, timeout=30):
     "shortcut function to serve a wsgiapp on an address"
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
         traceback_debug = debug
+        keepalive_timeout = timeout
 
     class Connection(http.HTTPConnection):
         request_handler = RequestHandler

@@ -268,30 +268,14 @@ class HTTPConnection(connections.TCPConnection):
 
     def __init__(self, *args, **kwargs):
         super(HTTPConnection, self).__init__(*args, **kwargs)
-        self.keepalive_timer = None
-        self._timer = None
-
-    def _hit_timer(self):
-        self.closing = True
-        self._timer = None
-
-    def start_timer(self):
-        self.cancel_timer()
         if self.keepalive_timeout:
-            self._timer = greenhouse.Timer(self.keepalive_timeout,
-                    self._hit_timer)
-
-    def cancel_timer(self):
-        if self.keepalive_timeout and self._timer:
-            self._timer.cancel()
-            self._timer = None
+            self.socket.settimeout(self.keepalive_timeout)
 
     def get_request(self):
         try:
-            self.killable = False
-            self.socket.settimeout(self.keepalive_timeout)
             content = InputFile(self.socket, 0)
             request_line = content.readline()
+            self.killable = False
 
             if request_line in ('\n', '\r\n'):
                 request_line = content.readline()
@@ -330,8 +314,6 @@ class HTTPConnection(connections.TCPConnection):
 
             if 'content-length' in headers:
                 content.length = int(headers['content-length'])
-
-            self.cancel_timer()
 
             return HTTPRequest(
                     method=method,

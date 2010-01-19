@@ -16,17 +16,8 @@ class TCPConnection(object):
     the request_handler attribute should be set to a concrete subclass of
     feather.requests.RequestHandler
 
-    a few more utility methods can be overridden as well:
-
-    start_timer() will be called when the connection is no longer in a state
-    where it is between a request and a response
-
-    cancel_timer() will then be called once a request is received. (the
-    start/cancel timer hook was required in feather.http.HTTPConnection to
-    implement keep-alive)
-
-    cleanup() to do more connection cleanup. be sure to call the super method
-    for this one, as TCPConnection.cleanup is needed
+    cleanup() can be overridden to do more connection cleanup. be sure to call
+    the super method though, as TCPConnection.cleanup is needed
     """
 
     # set this attribute to something that implements handle()
@@ -58,23 +49,12 @@ class TCPConnection(object):
         else:
             self.killable_registry.pop(self.fileno, None)
 
-    def start_timer(self):
-        "override me. will be called to set a keep-alive (or similar) timer"
-        pass
-
-    def cancel_timer(self):
-        "override me. will be called to cancel the timer from start_timer()"
-        pass
-
     def serve_all(self):
-        self.start_timer()
-
         while not self.closing:
             request = self.get_request()
-            self.cancel_timer()
 
             if request is None:
-                # indicates connection terminated by client
+                # indicates timeout or connection terminated by client
                 break
 
             handler = self.request_handler(
@@ -91,14 +71,12 @@ class TCPConnection(object):
                 self.socket.sendall(chunk)
                 first = False
 
-            self.start_timer()
             greenhouse.pause()
 
         self.cleanup()
 
     def cleanup(self):
         "override (call the super method) to add to connection cleanup"
-        self.cancel_timer()
         self.killable = False
         self.socket.close()
         self.closed = True

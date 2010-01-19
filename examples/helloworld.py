@@ -21,4 +21,4 @@ if __name__ == "__main__":
     parser.add_option("-P", "--port", type="int", default=DEFAULT_PORT)
 
     options, args = parser.parse_args()
-    feather.wsgi.serve((options.host, options.port), wsgiapp, debug=True)
+    feather.wsgi.serve((options.host, options.port), wsgiapp, debug=True, timeout=1)
