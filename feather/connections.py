@@ -38,9 +38,6 @@ class TCPConnection(object):
         "override to return an object representing a single request"
         raise NotImplementedError()
 
-    def in_coro_setup(self):
-        pass
-
     @property
     def killable(self):
         return self.fileno in self.killable_registry
@@ -53,8 +50,6 @@ class TCPConnection(object):
             self.killable_registry.pop(self.fileno, None)
 
     def serve_all(self):
-        self.in_coro_setup()
-
         while not self.closing:
             request = self.get_request()
 
