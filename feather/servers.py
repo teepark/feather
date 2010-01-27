@@ -124,7 +124,7 @@ class TCPServer(BaseServer):
                             self.killable)
                     greenhouse.schedule(handler.serve_all)
                 except socket.error, error:
-                    if err.args[0] == errno.EMFILE:
+                    if error.args[0] == errno.EMFILE:
                         # max open connections for the process
                         if not self.killable:
                             # if all connections are active, just wait a
@@ -138,7 +138,7 @@ class TCPServer(BaseServer):
                             handler = self.killable.pop(fd)
                             handler.socket.close()
                             handler.closed = True
-                    elif err.args[0] == errno.ENFILE:
+                    elif error.args[0] == errno.ENFILE:
                         # max open connections for the machine
                         greenhouse.pause_for(0.01)
                     else:
