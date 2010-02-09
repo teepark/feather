@@ -120,8 +120,7 @@ class TCPServer(BaseServer):
                     handler = self.connection_handler(
                             client_sock,
                             client_address,
-                            self.address,
-                            self.killable)
+                            self)
                     greenhouse.schedule(handler.serve_all)
                 except socket.error, error:
                     if error.args[0] == errno.EMFILE:

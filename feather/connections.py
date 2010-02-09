@@ -23,13 +23,11 @@ class TCPConnection(object):
     # set this attribute to something that implements handle()
     request_handler = requests.RequestHandler
 
-    def __init__(self, sock, client_address, server_address,
-            killable_registry):
+    def __init__(self, sock, client_address, server):
         self.socket = sock
         self.fileno = sock.fileno()
         self.client_address = client_address
-        self.server_address = server_address
-        self.killable_registry = killable_registry
+        self.server = server
         self.closing = False
         self.closed = False
 
@@ -40,14 +38,14 @@ class TCPConnection(object):
 
     @property
     def killable(self):
-        return self.fileno in self.killable_registry
+        return self.fileno in self.server.killable
 
     @killable.setter
     def killable(self, value):
         if value:
-            self.killable_registry[self.fileno] = self
+            self.server.killable[self.fileno] = self
         else:
-            self.killable_registry.pop(self.fileno, None)
+            self.server.killable.pop(self.fileno, None)
 
     def serve_all(self):
         while not self.closing:
@@ -58,7 +56,7 @@ class TCPConnection(object):
                 break
 
             handler = self.request_handler(
-                    self.client_address, self.server_address, self)
+                    self.client_address, self.server.address, self)
 
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
