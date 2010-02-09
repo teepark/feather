@@ -1,6 +1,7 @@
 import errno
 import os
 import socket
+import subprocess
 
 import greenhouse
 from feather import connections
@@ -89,11 +90,27 @@ class TCPServer(BaseServer):
 
     * listen_backlog is the number of connections to allow to queue up when the
       server can't accept them fast enough. its default is the maximum allowed
-      by the system.
+      by the system (socket.SOMAXCONN).
+
+    * max_conns is the number of connections to handle simultaneously per
+      worker process. it defaults to the maximum number of file descriptors one
+      process is allowed to have open, after accounting for stdin, stdout,
+      stderr and the listening socket. if you are running more than one
+      TCPServer together you should reduce max_conns to accomodate them all.
+
+    * descriptor_counter is a greenhouse.BoundedSemaphore that controls socket
+      and file object creation (created on setup()). if you open sockets (for
+      api calls or database connections) you may want to call
+      server.descriptor_counter.acquire() (and .release() when the socket
+      closes) to avoid EMFILE exceptions.
     """
     socket_type = socket.SOCK_STREAM
     listen_backlog = socket.SOMAXCONN
     connection_handler = connections.TCPConnection
+
+    max_conns = subprocess.MAXFD - 4 # stdin, stdout, stderr, listening socket
+    if isinstance(greenhouse._state.state.poller, greenhouse.poller.Poll):
+        max_conns -= 1 # Poll and Epoll objects use up another fd
 
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
@@ -102,6 +119,7 @@ class TCPServer(BaseServer):
     def pre_fork_setup(self):
         super(TCPServer, self).pre_fork_setup()
         self.socket.listen(self.listen_backlog)
+        self.descriptor_counter = greenhouse.BoundedSemaphore(self.max_conns)
 
     def serve(self):
         """run the server at the provided address forever.
@@ -116,6 +134,9 @@ class TCPServer(BaseServer):
         try:
             while not self.shutting_down:
                 try:
+                    # this will block until fewer than max_conns handlers exist
+                    self.descriptor_counter.acquire()
+
                     client_sock, client_address = self.socket.accept()
                     handler = self.connection_handler(
                             client_sock,

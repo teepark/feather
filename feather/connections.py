@@ -78,3 +78,4 @@ class TCPConnection(object):
         self.killable = False
         self.socket.close()
         self.closed = True
+        self.server.descriptor_counter.release()
