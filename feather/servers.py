@@ -107,7 +107,6 @@ class TCPServer(BaseServer):
     socket_type = socket.SOCK_STREAM
     listen_backlog = socket.SOMAXCONN
     connection_handler = connections.TCPConnection
-
     max_conns = subprocess.MAXFD - 4 # stdin, stdout, stderr, listening socket
     if isinstance(greenhouse._state.state.poller, greenhouse.poller.Poll):
         max_conns -= 1 # Poll and Epoll objects use up another fd

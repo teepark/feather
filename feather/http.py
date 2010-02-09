@@ -9,7 +9,7 @@ from feather import connections, requests
 import greenhouse
 
 
-__all__ = ["InputFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
+__all__ = ["SizeBoundFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
         "HTTPConnection"]
 
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
@@ -70,19 +70,19 @@ class HTTPError(Exception):
         self.headers = headers or []
 
 
-class InputFile(socket._fileobject):
+class SizeBoundFile(socket._fileobject):
     """a file object that doesn't attempt to read past a specified length.
 
     unless overridden, HTTPConnection uses this as request.content
     """
     def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
         self.length = length
-        super(InputFile, self).__init__(sock, mode, bufsize, close)
+        super(SizeBoundFile, self).__init__(sock, mode, bufsize, close)
 
     def read(self, size=-1):
         size = min(size, self.length)
         if size < 0: size = self.length
-        rc = super(InputFile, self).read(size)
+        rc = super(SizeBoundFile, self).read(size)
         self.length -= max(self.length, len(rc))
         return rc
 
@@ -260,8 +260,7 @@ class HTTPConnection(connections.TCPConnection):
     # header-parsing class from the stdlib
     header_class = httplib.HTTPMessage
 
-    # we don't support changing the HTTP version inside a connection,
-    # because that's just silliness
+    # we don't support changing the HTTP version inside a connection
     http_version = (1, 1)
 
     keepalive_timeout = 30
@@ -273,7 +272,7 @@ class HTTPConnection(connections.TCPConnection):
 
     def get_request(self):
         try:
-            content = InputFile(self.socket, 0)
+            content = SizeBoundFile(self.socket, 0)
             request_line = content.readline()
             self.killable = False
 
