@@ -2,7 +2,8 @@
 
 import optparse
 
-import feather
+from feather import servers, connections, requests
+import greenhouse
 
 
 DEFAULT_HOST = ""
@@ -10,51 +11,57 @@ DEFAULT_PORT = 9000
 
 connected = {}
 
+class RequestHandler(requests.RequestHandler):
+    def handle(self, request):
+        self.connection.broadcast("%s: %s" % (
+                self.connection.username, request.rstrip('\r\n')))
+        return []
 
-class ChatClientConnection(object):
-    def __init__(self, sock, address, server):
-        self.sock = sock
-        self.client_address = address
-        self.server = server
 
-    def send_msg(self, msg):
-        if not self.sock._closed:
-            self.sock.sendall(msg)
+class ConnectionHandler(connections.TCPConnection):
+    request_handler = RequestHandler
 
-    def broadcast(self, msg):
-        for conn in connected.values():
-            if conn is not self:
-                conn.send_msg(msg)
+    def __init__(self, *args, **kwargs):
+        super(ConnectionHandler, self).__init__(*args, **kwargs)
+        self.sockfile = self.socket.makefile('r')
 
-    def serve_all_requests(self):
-        sock = self.sock
+    def get_request(self):
+        request = self.sockfile.readline()
+        if not request:
+            self.closing = True
+            return None
+        return request
 
-        sock.sendall("enter your name up to 20 characters\r\n")
-        name = sock.recv(8192).rstrip("\r\n")
+    def setup(self):
+        super(ConnectionHandler, self).setup()
+
+        self.socket.sendall("** input your name (20 chars or less):\r\n")
+        name = self.sockfile.readline().rstrip('\r\n')
 
         if len(name) > 20:
-            sock.close()
-            return
+            self.closing = True
+            self.socket.sendall("** nope sucka, that's too long.\r\n")
+        elif name in connected:
+            self.closing = True
+            self.socket.sendall("** sorry, name %s is taken." % name)
+        else:
+            connected[name] = self
+            self.username = name
+            self.broadcast("** %s has entered the room." % name)
 
-        connected[name] = self
-        self.broadcast("*** %s has entered\r\n" % name)
+    def broadcast(self, msg):
+        for username, connection in connected.items():
+            if username != self.username:
+                connection.socket.sendall(msg + "\r\n")
 
-        sockfile = sock.makefile('r')
-        while 1:
-            line = sockfile.readline().rstrip("\r\n")
-
-            if not line:
-                connected.pop(name)
-                break
-
-            self.broadcast("%s: %s\r\n" % (name, line))
-
-        self.broadcast("*** %s has left the building\r\n" % name)
+    def cleanup(self):
+        self.broadcast("** %s has left the building." % self.username)
+        super(ConnectionHandler, self).cleanup()
+        del connected[self.username]
 
 
-class ChatServer(feather.server.Server):
-    connection_handler = ChatClientConnection
-    worker_count = 1 # no forking - all connections must share RAM
+class ChatServer(servers.TCPServer):
+    connection_handler = ConnectionHandler
 
 
 if __name__ == "__main__":

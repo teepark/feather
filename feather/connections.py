@@ -18,6 +18,8 @@ class TCPConnection(object):
 
     cleanup() can be overridden to do more connection cleanup. be sure to call
     the super method though, as TCPConnection.cleanup is needed
+
+    setup() can similarly be overridden to do setup work for new connections.
     """
 
     # set this attribute to something that implements handle()
@@ -47,7 +49,13 @@ class TCPConnection(object):
         else:
             self.server.killable.pop(self.fileno, None)
 
+    def setup(self):
+        "override to do extra setup for new connections"
+        pass
+
     def serve_all(self):
+        self.setup()
+
         while not self.closing:
             request = self.get_request()
 
