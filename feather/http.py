@@ -179,7 +179,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         self.set_body(error.body)
 
     def format_response(self):
-        http_version = '.'.join(map(str, self._connection.http_version))
+        http_version = '.'.join(map(str, self.connection.http_version))
         code = self._code or 200
         status, long_status = responses[code]
         if self._body is None:
@@ -188,7 +188,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         closed = self._have_header('connection', 'close')
 
         # any time the connection is about to be closed, send the header
-        if self._connection.closing and not closed:
+        if self.connection.closing and not closed:
             self.add_header('Connection', 'close')
             closed = True
 
@@ -200,9 +200,9 @@ class HTTPRequestHandler(requests.RequestHandler):
                 if not closed:
                     closed = True
                     self.add_header('Connection', 'close')
-                self._connection.closing = True
+                self.connection.closing = True
 
-        if not self._connection.keepalive_timeout and not closed:
+        if not self.connection.keepalive_timeout and not closed:
             self.add_header('Connection', 'close')
             close = True
 
