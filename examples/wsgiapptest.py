@@ -5,7 +5,7 @@ import logging
 import optparse
 import sys
 
-import feather
+import feather.wsgi
 
 
 DEFAULT_HOST = ""
@@ -45,11 +45,9 @@ def wsgiapp(environ, start_response):
 
 if __name__ == "__main__":
     parser = optparse.OptionParser(add_help_option=False)
-    parser.add_option("-v", "--verbose", action="store_true")
     parser.add_option("-p", "--port", type="int", default=DEFAULT_PORT)
     parser.add_option("-h", "--host", default=DEFAULT_HOST)
 
     options, args = parser.parse_args()
-    if options.verbose:
-        logging.getLogger("feather").setLevel(logging.DEBUG)
-    feather.serve_wsgi_app((options.host, options.port), wsgiapp)
+    feather.wsgi.serve((options.host, options.port), wsgiapp,
+            traceback_debug=True)
