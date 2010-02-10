@@ -41,8 +41,8 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
             'wsgi.run_once': False,
             'SCRIPT_NAME': '',
             'PATH_INFO': request.path,
-            'SERVER_NAME': self.server_address[0],
-            'SERVER_PORT': self.server_address[1],
+            'SERVER_NAME': self.server_address[0] or "localhost",
+            'SERVER_PORT': str(self.server_address[1]),
             'REQUEST_METHOD': request.method,
             'SERVER_PROTOCOL': "HTTP/%s.%s" % tuple(request.version),
         }
