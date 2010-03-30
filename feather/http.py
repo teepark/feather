@@ -121,7 +121,7 @@ class HTTPRequestHandler(requests.RequestHandler):
     add_headers(headers)
         add a group of headers.  provide two-tuples of (name, value) pairs
     """
-    traceback_debug = False
+    traceback_body = False
 
     def __init__(self, *args, **kwargs):
         super(HTTPRequestHandler, self).__init__(*args, **kwargs)
@@ -156,7 +156,7 @@ class HTTPRequestHandler(requests.RequestHandler):
             self.translate_http_error(HTTPError(405))
 
         except:
-            if self.traceback_debug:
+            if self.traceback_body:
                 self.set_body(traceback.format_exc())
             self.set_code(500)
             self.add_header('Content-type', 'text/plain')

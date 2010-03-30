@@ -103,13 +103,13 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
 def serve(address,
         app,
         keepalive_timeout=30,
-        traceback_debug=False,
+        traceback_body=False,
         max_conns=None,
         worker_count=None):
     "shortcut function to serve a wsgiapp on an address"
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
-    RequestHandler.traceback_debug = traceback_debug
+    RequestHandler.traceback_body = traceback_body
 
     class Connection(http.HTTPConnection):
         request_handler = RequestHandler

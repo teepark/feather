@@ -15,4 +15,4 @@ wsgiapp = make_pony(helloworld, None) # 2nd arg just gets thrown away
 
 
 if __name__ == "__main__":
-    feather.wsgi.serve((HOST, PORT), wsgiapp, traceback_debug=True)
+    feather.wsgi.serve((HOST, PORT), wsgiapp, traceback_body=True)
