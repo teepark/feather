@@ -4,7 +4,7 @@ except ImportError:
     from StringIO import StringIO
 import inspect
 
-from feather import http, servers
+from feather import http
 import greenhouse
 
 
@@ -105,8 +105,10 @@ def serve(address,
         keepalive_timeout=30,
         traceback_body=False,
         max_conns=None,
-        worker_count=None):
-    "shortcut function to serve a wsgiapp on an address"
+        worker_count=None,
+        access_log=None,
+        error_log=None):
+    "shortcut function to serve a wsgi app on an address"
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
     RequestHandler.traceback_body = traceback_body
@@ -115,7 +117,8 @@ def serve(address,
         request_handler = RequestHandler
     Connection.keepalive_timeout = keepalive_timeout
 
-    server = servers.TCPServer(address)
+    server = http.HTTPServer(address, access_log=access_log,
+            error_log=error_log)
     server.connection_handler = Connection
     server.worker_count = worker_count or server.worker_count
     server.max_conns = max_conns or server.max_conns

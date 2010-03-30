@@ -103,6 +103,9 @@ class TCPServer(BaseServer):
       api calls or database connections) you may want to call
       server.descriptor_counter.acquire() (and .release() when the socket
       closes) to avoid EMFILE exceptions.
+
+    the cleanup() method may also be overridden (but call the super) to add
+    extra behavior at the server's exit
     """
     socket_type = socket.SOCK_STREAM
     listen_backlog = socket.SOMAXCONN
@@ -165,7 +168,10 @@ class TCPServer(BaseServer):
         except KeyboardInterrupt:
             pass
         finally:
-            self.socket.close()
+            self.cleanup()
+
+    def cleanup(self):
+        self.socket.close()
 
 
 class UDPServer(BaseServer):

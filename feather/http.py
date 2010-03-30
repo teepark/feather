@@ -1,11 +1,15 @@
 import BaseHTTPServer
 import httplib
 import itertools
+import logging
+import os
 import socket
+import subprocess
+import sys
 import traceback
 import urlparse
 
-from feather import connections, requests
+from feather import connections, requests, servers
 import greenhouse
 
 
@@ -46,6 +50,7 @@ class HTTPRequest(object):
         request
     '''
     __slots__ = [
+            "request_line",
             "method",
             "version",
             "scheme",
@@ -82,9 +87,9 @@ class SizeBoundFile(socket._fileobject):
     def read(self, size=-1):
         size = min(size, self.length)
         if size < 0: size = self.length
-        rc = super(SizeBoundFile, self).read(size)
-        self.length -= max(self.length, len(rc))
-        return rc
+        data = super(SizeBoundFile, self).read(size)
+        self.length -= min(self.length, len(data))
+        return data
 
     def readlines(self):
         text = self.read()
@@ -220,7 +225,7 @@ class HTTPRequestHandler(requests.RequestHandler):
             first_chunk = iterator.next()
         except StopIteration:
             first_chunk = ''
-        return itertools.chain([head + first_chunk], iterator)
+        return code, len(head), itertools.chain([head + first_chunk], iterator)
 
     def do_GET(self, request):
         raise NotImplementedError()
@@ -314,6 +319,7 @@ class HTTPConnection(connections.TCPConnection):
                 content.length = int(headers['content-length'])
 
             return HTTPRequest(
+                    request_line=request_line,
                     method=method,
                     version=version,
                     scheme=scheme,
@@ -326,3 +332,70 @@ class HTTPConnection(connections.TCPConnection):
 
         except:
             return None
+
+    def log_access(self, access_time, request, code, body_len):
+        self.server.access_log_file.writelines([
+            self.server.access_log_format % (
+                self.socket.getsockname()[0],
+                access_time.ctime(),
+                request.request_line.rstrip(),
+                code,
+                body_len,
+                request.headers.get("http-referer", "-"),
+                request.headers.get("user-agent", "-"),
+            )])
+        self.server.access_log_file.flush()
+
+
+class HTTPServer(servers.TCPServer):
+    """
+    """
+    connection_handler = HTTPConnection
+
+    access_log = "/var/log/feather_http/access.log"
+    error_log = "/var/log/feather_http/error.log"
+
+    access_log_format = '%(ip)s - - [%(time)s] "%(request_line)s" ' + \
+            '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"\n'
+
+    max_conns = subprocess.MAXFD - 6
+
+    def __init__(self, *args, **kwargs):
+        self.access_log = kwargs.pop("access_log", self.access_log)
+        self.error_log = kwargs.pop("error_log", self.error_log)
+
+        super(HTTPServer, self).__init__(*args, **kwargs)
+
+    def _setup_loggers(self):
+        if self.access_log:
+            dirpath, fname = os.path.split(self.access_log)
+            if not os.path.isdir(dirpath):
+                os.mkdir(dirpath)
+            self.access_log_file = greenhouse.File(self.access_log, 'a')
+            self._close_access_log = True
+        else:
+            self.access_log_file = sys.stdout
+            self._close_access_log = False
+
+        if self.error_log:
+            dirpath, fname = os.path.split(self.error_log)
+            if not os.path.isdir(dirpath):
+                os.mkdir(dirpath)
+            self.error_log_file = greenhouse.File(self.error_log, 'a')
+            self._close_error_log = True
+        else:
+            self.error_log_file = sys.stderr
+            self._close_error_log = False
+
+    def pre_fork_setup(self):
+        super(HTTPServer, self).pre_fork_setup()
+        self._setup_loggers()
+
+    def cleanup(self):
+        super(HTTPServer, self).cleanup()
+
+        if self._close_access_log:
+            self._access_log.close()
+
+        if self._close_error_log:
+            self._error_log.close()

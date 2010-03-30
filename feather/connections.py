@@ -1,3 +1,5 @@
+import datetime
+
 from feather import requests
 import greenhouse
 
@@ -65,19 +67,25 @@ class TCPConnection(object):
 
             handler = self.request_handler(
                     self.client_address, self.server.address, self)
+            code, head_len, response = handler.handle(request)
+            sent = 0
+            access_time = datetime.datetime.now()
 
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
-            response = handler.handle(request)
             first = True
             for chunk in response:
                 if not first:
                     greenhouse.pause()
                 self.socket.sendall(chunk)
+                sent += len(chunk)
                 first = False
 
-            greenhouse.pause()
+            self.log_access(access_time, request, code, sent - head_len)
+
+            if not self.closing:
+                greenhouse.pause()
 
         self.cleanup()
 
@@ -87,3 +95,6 @@ class TCPConnection(object):
         self.socket.close()
         self.closed = True
         self.server.descriptor_counter.release()
+
+    def log_access(self, access_time, request, code, body_len):
+        pass
