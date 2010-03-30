@@ -119,7 +119,8 @@ class HTTPRequestHandler(requests.RequestHandler):
         add a single response header
 
     add_headers(headers)
-        add a group of headers.  provide two-tuples of (name, value) pairs
+        add a group of headers.  provide a list of two-tuples of (name, value)
+        pairs
     """
     traceback_body = False
 
@@ -144,15 +145,13 @@ class HTTPRequestHandler(requests.RequestHandler):
         handler = getattr(self, "do_%s" % request.method, None)
 
         try:
-            if not handler:
+            if not handler or handler(request) is NotImplemented:
                 raise HTTPError(405) # Method Not Allowed
-
-            handler(request)
 
         except HTTPError, error:
             self.translate_http_error(error)
 
-        except NotImplemented:
+        except NotImplementedError:
             self.translate_http_error(HTTPError(405))
 
         except:
