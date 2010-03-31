@@ -35,9 +35,9 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': request.scheme or 'http',
             'wsgi.input': request.content,
-            'wsgi.errors': greenhouse.exception_file,
+            'wsgi.errors': self.server.error_log_file,
             'wsgi.multithread': False,
-            'wsgi.multiprocess': True, #XXX: set this appropriately
+            'wsgi.multiprocess': self.server.worker_count > 1,
             'wsgi.run_once': False,
             'SCRIPT_NAME': '',
             'PATH_INFO': request.path,
