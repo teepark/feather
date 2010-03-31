@@ -1,4 +1,5 @@
 import datetime
+import sys
 
 from feather import requests
 import greenhouse
@@ -67,9 +68,17 @@ class TCPConnection(object):
 
             handler = self.request_handler(
                     self.client_address, self.server.address, self)
-            code, head_len, response = handler.handle(request)
-            sent = 0
+
             access_time = datetime.datetime.now()
+            sent = 0
+
+            try:
+                code, head_len, response = handler.handle(request)
+            except:
+                klass, exc, tb = sys.exc_info()
+                self.log_error(klass, exc, tb)
+                code, head_len, response = handler.handle_error(klass, exc, tb)
+                klass, exc, tb = None, None, None
 
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
@@ -97,4 +106,7 @@ class TCPConnection(object):
         self.server.descriptor_counter.release()
 
     def log_access(self, access_time, request, code, body_len):
+        pass
+
+    def log_error(self, klass, exc, tb):
         pass

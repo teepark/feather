@@ -159,12 +159,13 @@ class HTTPRequestHandler(requests.RequestHandler):
         except NotImplementedError:
             self.translate_http_error(HTTPError(405))
 
-        except:
-            if self.traceback_body:
-                self.set_body(traceback.format_exc())
-            self.set_code(500)
-            self.add_header('Content-type', 'text/plain')
+        return self.format_response()
 
+    def handle_error(self, klass, exc, tb):
+        if self.traceback_body:
+            self.set_body(traceback.format_exception(klass, exc, tb))
+        self.set_code(500)
+        self.add_header('Content-type', 'text/plain')
         return self.format_response()
 
     def _have_header(self, header, required_value=None):
@@ -335,7 +336,7 @@ class HTTPConnection(connections.TCPConnection):
 
     def log_access(self, access_time, request, code, body_len):
         self.server.access_log_file.writelines([
-            self.server.access_log_format % (
+            self.server.access_log_format % {
                 self.socket.getsockname()[0],
                 access_time.ctime(),
                 request.request_line.rstrip(),
@@ -343,8 +344,14 @@ class HTTPConnection(connections.TCPConnection):
                 body_len,
                 request.headers.get("http-referer", "-"),
                 request.headers.get("user-agent", "-"),
-            )])
+            }])
         self.server.access_log_file.flush()
+
+    def log_error(self, klass, exc, tb):
+        self.server.error_log_file.write(
+                "".join(traceback.format_exception(klass, exc, tb)))
+        self.server.error_log_file.write("--------\n")
+        self.server.error_log_file.flush()
 
 
 class HTTPServer(servers.TCPServer):
@@ -352,17 +359,14 @@ class HTTPServer(servers.TCPServer):
     """
     connection_handler = HTTPConnection
 
-    access_log = "/var/log/feather_http/access.log"
-    error_log = "/var/log/feather_http/error.log"
-
     access_log_format = '%(ip)s - - [%(time)s] "%(request_line)s" ' + \
             '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"\n'
 
     max_conns = subprocess.MAXFD - 6
 
     def __init__(self, *args, **kwargs):
-        self.access_log = kwargs.pop("access_log", self.access_log)
-        self.error_log = kwargs.pop("error_log", self.error_log)
+        self.access_log = kwargs.pop("access_log")
+        self.error_log = kwargs.pop("error_log")
 
         super(HTTPServer, self).__init__(*args, **kwargs)
 
