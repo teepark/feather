@@ -337,13 +337,13 @@ class HTTPConnection(connections.TCPConnection):
     def log_access(self, access_time, request, code, body_len):
         self.server.access_log_file.writelines([
             self.server.access_log_format % {
-                self.socket.getsockname()[0],
-                access_time.ctime(),
-                request.request_line.rstrip(),
-                code,
-                body_len,
-                request.headers.get("http-referer", "-"),
-                request.headers.get("user-agent", "-"),
+                'ip': self.socket.getsockname()[0],
+                'time': access_time.ctime(),
+                'request_line': request.request_line.rstrip(),
+                'resp_code': code,
+                'body_len': body_len,
+                'referer': request.headers.get("http-referer", "-"),
+                'user_agent': request.headers.get("user-agent", "-"),
             }])
         self.server.access_log_file.flush()
 
