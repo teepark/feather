@@ -6,6 +6,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 import traceback
 import urlparse
 
@@ -334,11 +335,34 @@ class HTTPConnection(connections.TCPConnection):
         except:
             return None
 
+    @staticmethod
+    def format_datetime(dt):
+        month = {
+            "01": "Jan",
+            "02": "Feb",
+            "03": "Mar",
+            "04": "Apr",
+            "05": "May",
+            "06": "Jun",
+            "07": "Jul",
+            "08": "Aug",
+            "09": "Sep",
+            "10": "Oct",
+            "11": "Nov",
+            "12": "Dec",
+            }[dt.strftime("%m")]
+        tz = -time.altzone / 36
+        neg = tz < 0
+        tz = str(-tz).zfill(4)
+        if neg:
+            tz = "-%s" % tz
+        return dt.strftime("%d/%%s/%Y:%H:%M:%S %%s") % (month, tz)
+
     def log_access(self, access_time, request, code, body_len):
         self.server.access_log_file.writelines([
             self.server.access_log_format % {
                 'ip': self.socket.getsockname()[0],
-                'time': access_time.ctime(),
+                'time': self.format_datetime(access_time),
                 'request_line': request.request_line.rstrip(),
                 'resp_code': code,
                 'body_len': body_len,
