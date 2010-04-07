@@ -374,7 +374,6 @@ class HTTPConnection(connections.TCPConnection):
     def log_error(self, klass, exc, tb):
         self.server.error_log_file.write(
                 "".join(traceback.format_exception(klass, exc, tb)))
-        self.server.error_log_file.write("--------\n")
         self.server.error_log_file.flush()
 
 
