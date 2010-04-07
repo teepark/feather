@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import optparse
+import traceback
 
 from feather import servers, connections, requests
-import greenhouse
 
 
 DEFAULT_HOST = ""
@@ -15,7 +15,7 @@ class RequestHandler(requests.RequestHandler):
     def handle(self, request):
         self.connection.broadcast("%s: %s" % (
                 self.connection.username, request.rstrip('\r\n')))
-        return []
+        return [], None
 
 
 class ConnectionHandler(connections.TCPConnection):
@@ -59,8 +59,12 @@ class ConnectionHandler(connections.TCPConnection):
         super(ConnectionHandler, self).cleanup()
         del connected[self.username]
 
+    def log_error(self, klass, exc, tb):
+        traceback.print_exception(klass, exc, tb)
+
 
 class ChatServer(servers.TCPServer):
+    worker_count = 1
     connection_handler = ConnectionHandler
 
 

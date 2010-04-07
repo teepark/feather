@@ -17,10 +17,10 @@ def xss_scrub(data):
 def wsgiapp(environ, start_response):
     if environ['PATH_INFO'] == '/':
         response = '''
-            <form action=/handler method=POST>
-                <input type=text name=data1 /><br>
-                <input type=text name=data2 />
-                <input type=submit />
+            <form action="/handler" method="POST">
+                <input type="text" name="data1" /><br>
+                <input type="text" name="data2" />
+                <input type="submit" />
             </form>
         '''
         start_response("200 OK", [('content-type', 'text/html'),
