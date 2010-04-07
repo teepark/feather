@@ -102,7 +102,6 @@ class TCPConnection(object):
         "override (call the super method) to add to connection cleanup"
         self.killable = False
         self.socket.close()
-        self.socket._sock.close() #HACK until greenhouse gets a proper solution
         self.closed = True
         self.server.descriptor_counter.release()
 
