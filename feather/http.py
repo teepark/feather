@@ -227,7 +227,8 @@ class HTTPRequestHandler(requests.RequestHandler):
             first_chunk = iterator.next()
         except StopIteration:
             first_chunk = ''
-        return code, len(head), itertools.chain([head + first_chunk], iterator)
+        return (itertools.chain([head + first_chunk], iterator),
+            (code, len(head)))
 
     def do_GET(self, request):
         raise NotImplementedError()
@@ -358,7 +359,9 @@ class HTTPConnection(connections.TCPConnection):
             tz = "-%s" % tz
         return dt.strftime("%d/%%s/%Y:%H:%M:%S %%s") % (month, tz)
 
-    def log_access(self, access_time, request, code, body_len):
+    def log_access(self, access_time, request, metadata, sent):
+        code, head_len = metadata
+        body_len = sent - head_len
         self.server.access_log_file.writelines([
             self.server.access_log_format % {
                 'ip': self.socket.getsockname()[0],

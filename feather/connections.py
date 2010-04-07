@@ -73,11 +73,11 @@ class TCPConnection(object):
             sent = 0
 
             try:
-                code, head_len, response = handler.handle(request)
+                response, metadata = handler.handle(request)
             except:
                 klass, exc, tb = sys.exc_info()
                 self.log_error(klass, exc, tb)
-                code, head_len, response = handler.handle_error(klass, exc, tb)
+                response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
 
             # the return value from handler.handle may be a generator or
@@ -91,7 +91,7 @@ class TCPConnection(object):
                 sent += len(chunk)
                 first = False
 
-            self.log_access(access_time, request, code, sent - head_len)
+            self.log_access(access_time, request, metadata, sent)
 
             if not self.closing:
                 greenhouse.pause()
@@ -105,7 +105,7 @@ class TCPConnection(object):
         self.closed = True
         self.server.descriptor_counter.release()
 
-    def log_access(self, access_time, request, code, body_len):
+    def log_access(self, access_time, request, metadata, sent):
         pass
 
     def log_error(self, klass, exc, tb):
