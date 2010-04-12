@@ -104,7 +104,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
 
 
 def serve(address,
-        app,
+        wsgiapp,
         keepalive_timeout=30,
         traceback_body=False,
         max_conns=None,
@@ -112,13 +112,15 @@ def serve(address,
         access_log=None,
         error_log=None):
     "shortcut function to serve a wsgi app on an address"
+    app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
+
     class RequestHandler(WSGIRequestHandler):
         wsgiapp = app
-    RequestHandler.traceback_body = traceback_body
+        traceback_body = tbbody
 
     class Connection(http.HTTPConnection):
         request_handler = RequestHandler
-    Connection.keepalive_timeout = keepalive_timeout
+        keepalive_timeout = keepalive
 
     server = http.HTTPServer(address, access_log=access_log,
             error_log=error_log)
