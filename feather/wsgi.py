@@ -57,7 +57,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
             environ['CONTENT_TYPE'] = request.headers['content-type']
 
         for name, value in request.headers.items():
-            environ['HTTP_%s' % name.replace('-', '_').title()] = value
+            environ['HTTP_%s' % name.replace('-', '_').upper()] = value
 
         collector = (StringIO(), False) # (write()en data, headers sent)
 
