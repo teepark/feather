@@ -59,6 +59,9 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
         for name, value in request.headers.items():
             environ['HTTP_%s' % name.replace('-', '_').upper()] = value
 
+        environ['feather.headers'] = [tuple(h.rstrip("\r\n").split(":", 1))
+                for h in request.headers.headers]
+
         collector = (StringIO(), False) # (write()en data, headers sent)
 
         def write(data):
