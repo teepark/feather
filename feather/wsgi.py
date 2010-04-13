@@ -62,7 +62,7 @@ class WSGIRequestHandler(http.HTTPRequestHandler):
         environ['feather.headers'] = [tuple(h.rstrip("\r\n").split(":", 1))
                 for h in request.headers.headers]
 
-        collector = (StringIO(), False) # (write()en data, headers sent)
+        collector = [StringIO(), False] # (write()en data, headers sent)
 
         def write(data):
             collector[0].write(data)
