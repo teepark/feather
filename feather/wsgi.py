@@ -8,7 +8,7 @@ from feather import http
 import greenhouse
 
 
-__all__ = ["WSGIRequestHandler", "serve"]
+__all__ = ["WSGIHTTPRequestHandler", "serve"]
 
 
 # the hoops one has to jump through to let the 'wsgiapp'
@@ -20,7 +20,7 @@ class _wsgiapp_callable(type):
                 metacls, name, bases, attrs)
 
 
-class WSGIRequestHandler(http.HTTPRequestHandler):
+class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
     """a fully implemented HTTPRequestHandler, ready to run a WSGI app.
     
     subclass and override the wsgiapp attribute to your wsgi application and
@@ -114,7 +114,7 @@ def serve(address,
     "shortcut function to serve a wsgi app on an address"
     app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
 
-    class RequestHandler(WSGIRequestHandler):
+    class RequestHandler(WSGIHTTPRequestHandler):
         wsgiapp = app
         traceback_body = tbbody
 
