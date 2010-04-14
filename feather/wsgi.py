@@ -59,6 +59,8 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
         for name, value in request.headers.items():
             environ['HTTP_%s' % name.replace('-', '_').upper()] = value
 
+        # the WSGI specification's handling of request headers sucks, so we're
+        # going to extend the spec here and provide a useful representation
         environ['feather.headers'] = [tuple(h.rstrip("\r\n").split(":", 1))
                 for h in request.headers.headers]
 
