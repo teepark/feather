@@ -4,6 +4,7 @@ import optparse
 import traceback
 
 from feather import servers, connections, requests
+import greenhouse
 
 
 DEFAULT_HOST = ""
@@ -43,7 +44,7 @@ class ConnectionHandler(connections.TCPConnection):
             self.socket.sendall("** nope sucka, that's too long.\r\n")
         elif name in connected:
             self.closing = True
-            self.socket.sendall("** sorry, name %s is taken." % name)
+            self.socket.sendall("** sorry, name %s is taken.\r\n" % name)
         else:
             connected[name] = self
             self.username = name
@@ -55,7 +56,9 @@ class ConnectionHandler(connections.TCPConnection):
                 connection.socket.sendall(msg + "\r\n")
 
     def cleanup(self):
-        self.broadcast("** %s has left the building." % self.username)
+        if hasattr(self, "username"):
+            self.broadcast("** %s has left the building." % self.username)
+        self.sockfile.close()
         super(ConnectionHandler, self).cleanup()
         del connected[self.username]
 
@@ -69,6 +72,7 @@ class ChatServer(servers.TCPServer):
 
 
 if __name__ == "__main__":
+    greenhouse.add_exception_handler(traceback.print_exception)
     parser = optparse.OptionParser()
     parser.add_option("-H", "--host", default=DEFAULT_HOST)
     parser.add_option("-P", "--port", type="int", default=DEFAULT_PORT)
