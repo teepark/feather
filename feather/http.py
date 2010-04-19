@@ -398,7 +398,7 @@ class HTTPServer(servers.TCPServer):
 
     def _setup_loggers(self):
         if self.access_log:
-            dirpath, fname = os.path.split(self.access_log)
+            dirpath, fname = os.path.split(os.path.abspath(self.access_log))
             if not os.path.isdir(dirpath):
                 os.mkdir(dirpath)
             self.access_log_file = greenhouse.File(self.access_log, 'a')
@@ -408,7 +408,7 @@ class HTTPServer(servers.TCPServer):
             self._close_access_log = False
 
         if self.error_log:
-            dirpath, fname = os.path.split(self.error_log)
+            dirpath, fname = os.path.split(os.path.abspath(self.error_log))
             if not os.path.isdir(dirpath):
                 os.mkdir(dirpath)
             self.error_log_file = greenhouse.File(self.error_log, 'a')
