@@ -35,7 +35,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': request.scheme or 'http',
             'wsgi.input': request.content,
-            'wsgi.errors': self.server.error_log_file,
+            'wsgi.errors': self.server._el_file,
             'wsgi.multithread': False,
             'wsgi.multiprocess': self.server.worker_count > 1,
             'wsgi.run_once': False,
