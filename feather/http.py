@@ -362,7 +362,7 @@ class HTTPConnection(connections.TCPConnection):
     def log_access(self, access_time, request, metadata, sent):
         code, head_len = metadata
         body_len = sent - head_len
-        self.server.access_log_file.writelines([
+        self.server._al_file.writelines([
             self.server.access_log_format % {
                 'ip': self.socket.getsockname()[0],
                 'time': self.format_datetime(access_time),
@@ -372,12 +372,12 @@ class HTTPConnection(connections.TCPConnection):
                 'referer': request.headers.get("http-referer", "-"),
                 'user_agent': request.headers.get("user-agent", "-"),
             }])
-        self.server.access_log_file.flush()
+        self.server._al_file.flush()
 
     def log_error(self, klass, exc, tb):
-        self.server.error_log_file.write(
+        self.server._el_file.write(
                 "".join(traceback.format_exception(klass, exc, tb)))
-        self.server.error_log_file.flush()
+        self.server._el_file.flush()
 
 
 class HTTPServer(servers.TCPServer):
@@ -401,21 +401,21 @@ class HTTPServer(servers.TCPServer):
             dirpath, fname = os.path.split(os.path.abspath(self.access_log))
             if not os.path.isdir(dirpath):
                 os.mkdir(dirpath)
-            self.access_log_file = greenhouse.File(self.access_log, 'a')
-            self._close_access_log = True
+            self._al_file = greenhouse.File(self.access_log, 'a')
+            self._close_al = True
         else:
-            self.access_log_file = sys.stdout
-            self._close_access_log = False
+            self._al_file = sys.stdout
+            self._close_al = False
 
         if self.error_log:
             dirpath, fname = os.path.split(os.path.abspath(self.error_log))
             if not os.path.isdir(dirpath):
                 os.mkdir(dirpath)
-            self.error_log_file = greenhouse.File(self.error_log, 'a')
-            self._close_error_log = True
+            self._el_file = greenhouse.File(self.error_log, 'a')
+            self._close_el = True
         else:
-            self.error_log_file = sys.stderr
-            self._close_error_log = False
+            self._el_file = sys.stderr
+            self._close_el = False
 
     def pre_fork_setup(self):
         super(HTTPServer, self).pre_fork_setup()
@@ -424,8 +424,8 @@ class HTTPServer(servers.TCPServer):
     def cleanup(self):
         super(HTTPServer, self).cleanup()
 
-        if self._close_access_log:
-            self._access_log.close()
+        if self._close_al:
+            self._al_file.close()
 
-        if self._close_error_log:
-            self._error_log.close()
+        if self._close_el:
+            self._el_file.close()
