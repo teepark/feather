@@ -1,4 +1,6 @@
 import datetime
+import errno
+import socket
 import sys
 
 from feather import requests
@@ -87,7 +89,14 @@ class TCPConnection(object):
             for chunk in response:
                 if not first:
                     greenhouse.pause()
-                self.socket.sendall(chunk)
+                try:
+                    self.socket.sendall(chunk)
+                except socket.error, exc:
+                    if exc.args[0] == errno.EPIPE:
+                        # client disconnected. how rude.
+                        self.closing = True
+                        break
+                    raise
                 sent += len(chunk)
                 first = False
 
