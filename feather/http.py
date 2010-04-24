@@ -359,12 +359,19 @@ class HTTPConnection(connections.TCPConnection):
             tz = "-%s" % tz
         return dt.strftime("%d/%%s/%Y:%H:%M:%S %%s") % (month, tz)
 
+    def _get_browser_ip(self, request):
+        if 'x-forwarded-for' in request.headers:
+            return request.headers['x-forwarded-for'].strip()
+        if 'x-real-ip' in request.headers:
+            return request.headers['x-real-ip'].strip()
+        return self.socket.getpeername()[0]
+
     def log_access(self, access_time, request, metadata, sent):
         code, head_len = metadata
         body_len = sent - head_len
         self.server._al_file.writelines([
             self.server.access_log_format % {
-                'ip': self.socket.getsockname()[0],
+                'ip': self._get_browser_ip(),
                 'time': self.format_datetime(access_time),
                 'request_line': request.request_line.rstrip(),
                 'resp_code': code,
