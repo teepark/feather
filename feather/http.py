@@ -371,7 +371,7 @@ class HTTPConnection(connections.TCPConnection):
         body_len = sent - head_len
         self.server._al_file.writelines([
             self.server.access_log_format % {
-                'ip': self._get_browser_ip(),
+                'ip': self._get_browser_ip(request),
                 'time': self.format_datetime(access_time),
                 'request_line': request.request_line.rstrip(),
                 'resp_code': code,
