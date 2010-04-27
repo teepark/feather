@@ -69,7 +69,9 @@ class TCPConnection(object):
                 break
 
             handler = self.request_handler(
-                    self.client_address, self.server.address, self)
+					self.client_address,
+                    (self.server.host, self.server.port),
+                    self)
 
             access_time = datetime.datetime.now()
             sent = 0

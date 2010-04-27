@@ -18,9 +18,10 @@ class BaseServer(object):
     address_family = socket.AF_INET
     socket_protocol = socket.SOL_IP
     worker_count = 5
+    allow_reuse_address = True
 
     def __init__(self, address):
-        self.address = address
+        self.host, self.port = address
         self.is_setup = False
         self.shutting_down = False
 
@@ -29,7 +30,8 @@ class BaseServer(object):
                 self.address_family,
                 self.socket_type,
                 self.socket_protocol)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if self.allow_reuse_address:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     def setup(self):
         self.pre_fork_setup()
@@ -40,7 +42,7 @@ class BaseServer(object):
     def pre_fork_setup(self):
         if not hasattr(self, "socket"):
             self.init_socket()
-        self.socket.bind(self.address)
+        self.socket.bind((self.host, self.port))
 
     def post_fork_setup(self):
         pass
@@ -54,22 +56,6 @@ class BaseServer(object):
 
     def serve(self):
         raise NotImplementedError()
-
-    @property
-    def host(self):
-        return self.address[0]
-
-    @host.setter
-    def host(self, value):
-        self.address[0] = value
-
-    @property
-    def port(self):
-        return self.address[1]
-
-    @port.setter
-    def port(self, value):
-        self.address[1] = value
 
 
 class TCPServer(BaseServer):
