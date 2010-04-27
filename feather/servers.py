@@ -165,8 +165,27 @@ class TCPServer(BaseServer):
 
 class UDPServer(BaseServer):
     socket_type = socket.SOCK_DGRAM
+    max_packet_size = 8192
 
     def serve(self):
         if not self.is_setup:
             self.setup()
-        ##XXX: finish this
+
+        try:
+            while not self.shutting_down:
+                self.handle_packet(*self.socket.recvfrom(self.max_packet_size))
+                if not self.shutting_down:
+                    greenhouse.pause()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        self.socket.close()
+
+    def handle_packet(self, data, address):
+        raise NotImplementedError()
+
+    def sendto(self, data, address):
+        return self.socket.sendto(data, address)
