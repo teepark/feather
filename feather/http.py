@@ -42,6 +42,9 @@ class HTTPRequest(object):
     querystring
         the full querystring from the path
 
+    fragment
+        the fragment portion of the url
+
     headers
         an object representing the HTTP headers. unless overridden,
         HTTPConnection provides an instance of httplib.HTTPMessage
@@ -58,6 +61,7 @@ class HTTPRequest(object):
             "host",
             "path",
             "querystring",
+            "fragment",
             "headers",
             "content"]
 
@@ -177,7 +181,7 @@ class HTTPRequestHandler(requests.RequestHandler):
                 return True
         return False
 
-    def translate_http_error(error):
+    def translate_http_error(self, error):
         self.set_code(error.code)
         if not self._have_header('content-type'):
             self.add_header('Content-type', 'text/plain')
@@ -398,8 +402,8 @@ class HTTPServer(servers.TCPServer):
     max_conns = subprocess.MAXFD - 6
 
     def __init__(self, *args, **kwargs):
-        self.access_log = kwargs.pop("access_log")
-        self.error_log = kwargs.pop("error_log")
+        self.access_log = kwargs.pop("access_log", None)
+        self.error_log = kwargs.pop("error_log", None)
 
         super(HTTPServer, self).__init__(*args, **kwargs)
 
