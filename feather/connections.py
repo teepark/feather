@@ -62,6 +62,8 @@ class TCPConnection(object):
         self.setup()
 
         while not self.closing:
+            self.killable = True
+
             request = self.get_request()
 
             if request is None:
