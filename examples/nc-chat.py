@@ -44,7 +44,7 @@ class ConnectionHandler(connections.TCPConnection):
             self.socket.sendall("** nope sucka, that's too long.\r\n")
         elif name in connected:
             self.closing = True
-            self.socket.sendall("** sorry, name %s is taken.\r\n" % name)
+            self.socket.sendall("** sorry, that name is taken.\r\n")
         else:
             connected[name] = self
             self.username = name
@@ -60,7 +60,7 @@ class ConnectionHandler(connections.TCPConnection):
             self.broadcast("** %s has left the building." % self.username)
         self.sockfile.close()
         super(ConnectionHandler, self).cleanup()
-        del connected[self.username]
+        connected.pop(self.username, None)
 
     def log_error(self, klass, exc, tb):
         traceback.print_exception(klass, exc, tb)
