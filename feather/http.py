@@ -100,11 +100,7 @@ class SizeBoundFile(socket._fileobject):
         text = self.read()
         if text[-1] == "\n":
             text = text[:-1]
-        return map(self._line_mapper, text.split("\n"))
-
-    @staticmethod
-    def _line_mapper(l):
-        return l + '\n'
+        return [l + '\n' for l in text.split("\n")]
 
 
 class HTTPRequestHandler(requests.RequestHandler):
