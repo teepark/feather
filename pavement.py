@@ -5,10 +5,20 @@ from paver.setuputils import setup
 
 setup(
     name="feather",
+    description="Server building blocks with coroutines and non-blocking I/O",
     packages=["feather"],
     version="0.1",
     author="Travis Parker",
-    author_email="travis.parker@gmail.com"
+    author_email="travis.parker@gmail.com",
+    url="http://github.com/teepark/python-lzf",
+    license="BSD",
+    classifiers = [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Natural Language :: English",
+        "Programming Language :: Python",
+    ],
 )
 
 MANIFEST = (
