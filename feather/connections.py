@@ -43,16 +43,14 @@ class TCPConnection(object):
         "override to return an object representing a single request"
         raise NotImplementedError()
 
-    @property
-    def killable(self):
+    def _get_killable(self):
         return self.fileno in self.server.killable
-
-    @killable.setter
-    def killable(self, value):
+    def _set_killable(self, value):
         if value:
             self.server.killable[self.fileno] = self
         else:
             self.server.killable.pop(self.fileno, None)
+    killable = property(_get_killable, _set_killable)
 
     def setup(self):
         "override to do extra setup for new connections"
