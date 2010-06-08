@@ -80,14 +80,14 @@ class HTTPError(Exception):
         self.headers = headers or []
 
 
-class SizeBoundFile(socket._fileobject):
+class SizeBoundFile(greenhouse.io.SocketFile):
     """a file object that doesn't attempt to read past a specified length.
 
     unless overridden, HTTPConnection uses this as request.content
     """
-    def __init__(self, sock, length, mode='rb', bufsize=-1, close=False):
+    def __init__(self, sock, length, mode='rb', bufsize=-1):
         self.length = length
-        super(SizeBoundFile, self).__init__(sock, mode, bufsize, close)
+        super(SizeBoundFile, self).__init__(sock, mode, bufsize)
 
     def read(self, size=-1):
         size = min(size, self.length)
