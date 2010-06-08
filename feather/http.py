@@ -1,9 +1,7 @@
 import BaseHTTPServer
 import httplib
 import itertools
-import logging
 import os
-import socket
 import subprocess
 import sys
 import time

@@ -2,10 +2,8 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from StringIO import StringIO
-import inspect
 
 from feather import http
-import greenhouse
 
 
 __all__ = ["WSGIHTTPRequestHandler", "serve"]
