@@ -216,7 +216,7 @@ class HTTPRequestHandler(requests.RequestHandler):
                 http_version, code, status, headers)
 
         if isinstance(self._body, str):
-            return (head + self._body,)
+            return ((head + self._body,), (code, len(head)))
 
         # we don't want the headers to go in their own send() call, so prefix
         # them to the first item in the body iterable, then re-prefix that item
