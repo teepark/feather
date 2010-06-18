@@ -85,20 +85,20 @@ class SizeBoundFile(greenhouse.io.SocketFile):
     """
     def __init__(self, sock, length, mode='rb', bufsize=-1):
         self.length = length
+        self._ignore_length = False
         super(SizeBoundFile, self).__init__(sock, mode, bufsize)
 
-    def read(self, size=-1):
-        size = min(size, self.length)
-        if size < 0: size = self.length
-        data = super(SizeBoundFile, self).read(size)
-        self.length -= min(self.length, len(data))
+    def _read_chunk(self, size):
+        # make the self.length+1st byte behave like EOF
+        if not self._ignore_length:
+            size = min(self.length, size)
+            if size < 0:
+                size = self.length
+        if not size:
+            return ''
+        data = super(SizeBoundFile, self)._read_chunk(size)
+        self.length = max(self.length - len(data), 0)
         return data
-
-    def readlines(self):
-        text = self.read()
-        if text[-1] == "\n":
-            text = text[:-1]
-        return [l + '\n' for l in text.split("\n")]
 
 
 class HTTPRequestHandler(requests.RequestHandler):
@@ -278,6 +278,7 @@ class HTTPConnection(connections.TCPConnection):
     def get_request(self):
         try:
             content = SizeBoundFile(self.socket, 0)
+            content._ignore_length = True
             request_line = content.readline()
             self.killable = False
 
@@ -304,6 +305,7 @@ class HTTPConnection(connections.TCPConnection):
                 return None
 
             headers = self.header_class(content)
+            content._ignore_length = False
 
             if version < (1, 1):
                 self.closing = True
