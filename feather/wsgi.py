@@ -1,3 +1,4 @@
+import itertools
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -99,7 +100,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
 
     def __getattr__(self, name):
         if name.startswith("do_"):
-            return do_everything
+            return self.do_everything
         raise AttributeError(name)
 
 

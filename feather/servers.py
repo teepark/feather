@@ -152,6 +152,9 @@ class TCPServer(BaseServer):
                     elif error.args[0] == errno.ENFILE:
                         # max open connections for the machine
                         greenhouse.pause_for(0.01)
+                    elif error.args[0] == errno.EINVAL:
+                        # server socket was shut down
+                        break
                     else:
                         raise
         except KeyboardInterrupt:
