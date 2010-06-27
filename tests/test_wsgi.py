@@ -15,6 +15,8 @@ class WSGIServerTests(FeatherTest):
         return ["Hello, World!"]
 
     def test_basic(self):
+        greenhouse.io.monkeypatch()
+
         with self.wsgi_server(self.hello_world, port=8989):
             self.assertEqual(
                     urllib2.urlopen("http://localhost:8989/").read(),
@@ -26,6 +28,8 @@ class WSGIServerTests(FeatherTest):
                 "http://localhost:8989/")
 
     def test_write(self):
+        greenhouse.io.monkeypatch()
+
         def app(environ, start_response):
             write = start_response("200, OK", [])
             write("written\n")
@@ -37,6 +41,8 @@ class WSGIServerTests(FeatherTest):
                     "written\nreturned")
 
     def test_headers(self):
+        greenhouse.io.monkeypatch()
+
         def app(environ, start_response):
             start_response("200 OK", [
                 ("X-Foo", "bar"),

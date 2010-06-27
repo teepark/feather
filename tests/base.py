@@ -8,7 +8,6 @@ import greenhouse
 
 
 greenhouse.add_exception_handler(traceback.print_exception)
-greenhouse.io.monkeypatch()
 
 GTL = greenhouse.Lock()
 
@@ -16,6 +15,8 @@ GTL = greenhouse.Lock()
 class FeatherTest(unittest.TestCase):
     def setUp(self):
         GTL.acquire()
+
+        greenhouse.io.unmonkeypatch()
 
         greenhouse.scheduler.state.awoken_from_events.clear()
         greenhouse.scheduler.state.timed_paused[:] = []
