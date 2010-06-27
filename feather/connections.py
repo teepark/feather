@@ -78,7 +78,7 @@ class TCPConnection(object):
 
             try:
                 response, metadata = handler.handle(request)
-            except:
+            except Exception:
                 klass, exc, tb = sys.exc_info()
                 self.log_error(klass, exc, tb)
                 response, metadata = handler.handle_error(klass, exc, tb)

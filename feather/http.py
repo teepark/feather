@@ -340,7 +340,7 @@ class HTTPConnection(connections.TCPConnection):
                     headers=headers,
                     content=content)
 
-        except:
+        except Exception:
             return None
 
     @staticmethod
