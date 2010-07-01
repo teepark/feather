@@ -62,27 +62,33 @@ class TCPConnection(object):
         while not self.closing:
             self.killable = True
 
-            request = self.get_request()
-
-            if request is None:
-                # indicates timeout or connection terminated by client
-                break
-
-            handler = self.request_handler(
-					self.client_address,
-                    (self.server.host, self.server.port),
-                    self)
-
-            access_time = datetime.datetime.now()
-            sent = 0
-
             try:
-                response, metadata = handler.handle(request)
+                request = self.get_request()
             except Exception:
                 klass, exc, tb = sys.exc_info()
                 self.log_error(klass, exc, tb)
                 response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
+            else:
+                if request is None:
+                    # indicates timeout or connection terminated by client
+                    break
+
+                handler = self.request_handler(
+                        self.client_address,
+                        (self.server.host, self.server.port),
+                        self)
+
+                access_time = datetime.datetime.now()
+                sent = 0
+
+                try:
+                    response, metadata = handler.handle(request)
+                except Exception:
+                    klass, exc, tb = sys.exc_info()
+                    self.log_error(klass, exc, tb)
+                    response, metadata = handler.handle_error(klass, exc, tb)
+                    klass, exc, tb = None, None, None
 
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send

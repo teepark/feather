@@ -282,66 +282,62 @@ class HTTPConnection(connections.TCPConnection):
             self.socket.settimeout(self.keepalive_timeout)
 
     def get_request(self):
-        try:
-            content = SizeBoundFile(self.socket, 0)
-            content._ignore_length = True
+        content = SizeBoundFile(self.socket, 0)
+        content._ignore_length = True
+        request_line = content.readline()
+        self.killable = False
+
+        if request_line in ('\n', '\r\n'):
             request_line = content.readline()
-            self.killable = False
 
-            if request_line in ('\n', '\r\n'):
-                request_line = content.readline()
-
-            if not request_line:
-                return None
-
-            method, path, version_string = request_line.split(' ', 2)
-            version_string = version_string.rstrip()
-
-            if not method.isalpha() or method != method.upper():
-                return None
-
-            url = urlparse.urlsplit(path)
-
-            if version_string[:5] != 'HTTP/':
-                return None
-
-            try:
-                version = tuple(int(v) for v in version_string[5:].split("."))
-            except ValueError:
-                return None
-
-            headers = self.header_class(content)
-            content._ignore_length = False
-            content._reset_collected()
-
-            if version < (1, 1):
-                self.closing = True
-            else:
-                for name, val in headers.items():
-                    if name.lower() == 'connection' and val.lower() == 'close':
-                        self.closing = True
-                        break
-
-            scheme = url.scheme or "http"
-            host = headers.get('host') or url.netloc or self.server_address
-
-            if 'content-length' in headers:
-                content.length = int(headers['content-length'])
-
-            return HTTPRequest(
-                    request_line=request_line,
-                    method=method,
-                    version=version,
-                    scheme=scheme,
-                    host=host,
-                    path=url.path,
-                    querystring=url.query,
-                    fragment=url.fragment,
-                    headers=headers,
-                    content=content)
-
-        except Exception:
+        if not request_line:
             return None
+
+        method, path, version_string = request_line.split(' ', 2)
+        version_string = version_string.rstrip()
+
+        if not method.isalpha() or method != method.upper():
+            return None
+
+        url = urlparse.urlsplit(path)
+
+        if version_string[:5] != 'HTTP/':
+            return None
+
+        try:
+            version = tuple(int(v) for v in version_string[5:].split("."))
+        except ValueError:
+            return None
+
+        headers = self.header_class(content)
+        content._ignore_length = False
+        content._reset_collected()
+
+        if version < (1, 1):
+            self.closing = True
+        else:
+            for name, val in headers.items():
+                if name.lower() == 'connection' and val.lower() == 'close':
+                    self.closing = True
+                    break
+
+        scheme = url.scheme or "http"
+        host = headers.get('host') or url.netloc or self.server_address
+
+        if 'content-length' in headers:
+            content.length = int(headers['content-length'])
+
+        return HTTPRequest(
+                request_line=request_line,
+                method=method,
+                version=version,
+                scheme=scheme,
+                host=host,
+                path=url.path,
+                querystring=url.query,
+                fragment=url.fragment,
+                headers=headers,
+                content=content)
 
     @staticmethod
     def format_datetime(dt):
