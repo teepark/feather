@@ -134,19 +134,16 @@ class TCPServer(BaseServer):
                 except socket.error, error:
                     if error.args[0] == errno.EMFILE:
                         # max open connections for the process
-                        self.descriptor_counter._value = 0
-
                         if self.killable:
                             # close all the connections that are
                             # only open for keep-alive anyway
-                            for fd in self.killable.keys():
-                                handler = self.killable.pop(fd)
+                            for handler in self.killable.values():
                                 handler.socket.close()
-                                handler.closed = True
+                                handler.closing = True
+                            self.killable.clear()
                         else:
-                            # if all connections are active, just wait a
-                            # while before accepting a new connection again
-                            greenhouse.pause_for(0.01)
+                            # if all connections are active, just let the
+                            # semaphore block -- we already set its value to 0
                             continue
 
                     elif error.args[0] == errno.ENFILE:

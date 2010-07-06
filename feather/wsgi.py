@@ -104,7 +104,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
         raise AttributeError(name)
 
 
-def serve(address,
+def server(address,
         wsgiapp,
         keepalive_timeout=30,
         traceback_body=False,
@@ -112,7 +112,6 @@ def serve(address,
         worker_count=None,
         access_log=None,
         error_log=None):
-    "shortcut function to serve a wsgi app on an address"
     app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
 
     class RequestHandler(WSGIHTTPRequestHandler):
@@ -128,4 +127,25 @@ def serve(address,
     server.connection_handler = Connection
     server.worker_count = worker_count or server.worker_count
     server.max_conns = max_conns or server.max_conns
-    server.serve()
+    return server
+
+
+def serve(address,
+        wsgiapp,
+        keepalive_timeout=30,
+        traceback_body=False,
+        max_conns=None,
+        worker_count=None,
+        access_log=None,
+        error_log=None):
+    "shortcut function to serve a wsgi app on an address"
+    server(
+            address,
+            wsgiapp,
+            keepalive_timeout=keepalive_timeout,
+            traceback_body=traceback_body,
+            max_conns=max_conns,
+            worker_count=worker_count,
+            access_log=access_log,
+            error_log=error_log
+    ).serve()

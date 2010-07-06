@@ -109,28 +109,12 @@ class SizeBoundFile(greenhouse.io.SocketFile):
 
 class HTTPRequestHandler(requests.RequestHandler):
     """the main application entry-point, this class handles a single request
-    
+
     subclass this and provide do_METHOD methods for every HTTP method you wish
     to support (do_GET and do_POST is a good place to start).
 
-    do_* methods should call methods provided by HTTPRequestHandler to supply
-    the proper response:
-
-    set_code(code)
-        the integer HTTP response code (200 for successful)
-
-    set_body(body)
-        the argument may be either a string or an iterable of strings. in the
-        latter case it is acceptable for it to be a generator or other lazy
-        iterator to allow a long response to be generated and sent gradually
-        without blocking the whole server process.
-
-    add_header(name, value)
-        add a single response header
-
-    add_headers(headers)
-        add a group of headers.  provide a list of two-tuples of (name, value)
-        pairs
+    do_* methods should set response data with HTTPRequestHandler methods
+    set_code, set_body, add_header, add_headers.
     """
     traceback_body = False
 
@@ -140,40 +124,35 @@ class HTTPRequestHandler(requests.RequestHandler):
         self._code = self._body = None
 
     def set_code(self, code):
+        '''set the integer HTTP response code
+
+        200 for successful, also the default
+        '''
         self._code = code
 
     def set_body(self, body):
+        '''set the value of the body of the HTTP response
+
+        the argument may be either a string or an iterable of strings. in the
+        latter case it may be a generator or other lazy iterator to allow a
+        long response to be generated and sent gradually without blocking the
+        whole server process.
+        '''
         self._body = body
 
     def add_header(self, name, value):
+        'add a single header to those queued for the HTTP response'
         self._headers.append((name, value))
 
     def add_headers(self, headers):
+        'add multiple (name, value) pairs to the queued HTTP response headers'
         self._headers.extend(headers)
 
-    def handle(self, request):
-        handler = getattr(self, "do_%s" % request.method, None)
+    def has_header(self, header, required_value=None):
+        '''indicate whether one or more headers with name `header` are queued
 
-        try:
-            if not handler or handler(request) is NotImplemented:
-                raise HTTPError(405) # Method Not Allowed
-
-        except HTTPError, error:
-            self.translate_http_error(error)
-
-        except NotImplementedError:
-            self.translate_http_error(HTTPError(405))
-
-        return self.format_response()
-
-    def handle_error(self, klass, exc, tb):
-        if self.traceback_body:
-            self.set_body(traceback.format_exception(klass, exc, tb))
-        self.set_code(500)
-        self.add_header('Content-type', 'text/plain')
-        return self.format_response()
-
-    def _have_header(self, header, required_value=None):
+        with `required_value`, further limit the search to the provided value
+        '''
         header = header.lower()
         for name, value in self._headers:
             if name.lower() == header and \
@@ -181,21 +160,31 @@ class HTTPRequestHandler(requests.RequestHandler):
                 return True
         return False
 
-    def translate_http_error(self, error):
+    def pop_header(self, header):
+        'remove and return all headers with name `header`'
+        header = header.lower()
+        removed, offset = [], 0
+        for index, (name, value) in enumerate(self._headers[:]):
+            if name.lower() == header:
+                removed.append(self._headers.pop(index - offset))
+                offset += 1
+        return removed
+
+    def _translate_http_error(self, error):
         self.set_code(error.code)
-        if not self._have_header('content-type'):
-            self.add_header('Content-type', 'text/plain')
         self.add_headers(error.headers)
+        self.pop_header('content-type')
+        self.add_header('Content-Type', 'text/plain')
         self.set_body(error.body)
 
-    def format_response(self):
+    def _format_response(self):
         http_version = '.'.join(map(str, self.connection.http_version))
         code = self._code or 200
         status, long_status = responses[code]
         if self._body is None:
             self._body = long_status
 
-        closed = self._have_header('connection', 'close')
+        closed = self.has_header('connection', 'close')
 
         # any time the connection is about to be closed, send the header
         if self.connection.closing and not closed:
@@ -203,7 +192,7 @@ class HTTPRequestHandler(requests.RequestHandler):
             closed = True
 
         # we MUST either send a Content-Length or close the connection
-        if not self._have_header('content-length'):
+        if not self.has_header('content-length'):
             if isinstance(self._body, str):
                 self.add_header('Content-Length', len(self._body))
             else:
@@ -234,10 +223,27 @@ class HTTPRequestHandler(requests.RequestHandler):
         return (itertools.chain([head + first_chunk], iterator),
             (code, len(head)))
 
-    def do_GET(self, request):
-        raise NotImplementedError()
+    def handle(self, request):
+        handler = getattr(self, "do_%s" % request.method, None)
 
-    do_POST = do_PUT = do_HEAD = do_DELETE = do_GET
+        try:
+            if not handler or handler(request) is NotImplemented:
+                raise HTTPError(405) # Method Not Allowed
+
+        except HTTPError, error:
+            self._translate_http_error(error)
+
+        except NotImplementedError:
+            self._translate_http_error(HTTPError(405))
+
+        return self._format_response()
+
+    def handle_error(self, klass, exc, tb):
+        if self.traceback_body:
+            self.set_body(traceback.format_exception(klass, exc, tb))
+        self.set_code(500)
+        self.add_header('Content-Type', 'text/plain')
+        return self._format_response()
 
 
 class HTTPConnection(connections.TCPConnection):
@@ -246,7 +252,7 @@ class HTTPConnection(connections.TCPConnection):
     the main point of this class is to implement get_request so that it parses
     an HTTP request from the socket so the request_handler's handle() method
     receives an instance of HTTPRequest.
-    
+
     there is not much overriding to be done at this level, but there are a few
     attributes that might be useful to change:
 
