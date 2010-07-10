@@ -62,6 +62,11 @@ class TCPConnection(object):
         while not self.closing and not self.server.shutting_down:
             self.killable = True
 
+            handler = self.request_handler(
+                    self.client_address,
+                    (self.server.host, self.server.port),
+                    self)
+
             try:
                 request = self.get_request()
             except Exception:
@@ -74,13 +79,7 @@ class TCPConnection(object):
                     # indicates timeout or connection terminated by client
                     break
 
-                handler = self.request_handler(
-                        self.client_address,
-                        (self.server.host, self.server.port),
-                        self)
-
                 access_time = datetime.datetime.now()
-                sent = 0
 
                 try:
                     response, metadata = handler.handle(request)
@@ -94,6 +93,7 @@ class TCPConnection(object):
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
             first = True
+            sent = 0
             for chunk in response:
                 if not first:
                     greenhouse.pause()
