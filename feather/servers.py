@@ -173,9 +173,9 @@ class TCPServer(BaseServer):
             handler.socket.close()
             handler.closing = True
 
-        # just busy wait until current requests are finished
+        # do a small timed wait until current requests are finished
         while self.open_conns:
-            greenhouse.pause()
+            greenhouse.pause_for(0.1)
 
 
 class UDPServer(BaseServer):
