@@ -109,6 +109,10 @@ class TCPServer(BaseServer):
         self.socket.listen(self.listen_backlog)
         self.descriptor_counter = greenhouse.BoundedSemaphore(self.max_conns)
 
+    def setup(self):
+        super(TCPServer, self).setup()
+        self.open_conns = 0
+
     def serve(self):
         """run the server at the provided address forever.
 
@@ -131,6 +135,7 @@ class TCPServer(BaseServer):
                             client_address,
                             self)
                     greenhouse.schedule(handler.serve_all)
+                    self.open_conns += 1
                 except socket.error, error:
                     if error.args[0] == errno.EMFILE:
                         # max open connections for the process
@@ -161,6 +166,16 @@ class TCPServer(BaseServer):
 
     def cleanup(self):
         self.socket.close()
+
+        # kill all connections now that aren't actively serving requests
+        # and the rest won't pick up new requests because of self.shutting_down
+        for handler in self.killable.values():
+            handler.socket.close()
+            handler.closing = True
+
+        # just busy wait until current requests are finished
+        while self.open_conns:
+            greenhouse.pause()
 
 
 class UDPServer(BaseServer):

@@ -59,7 +59,7 @@ class TCPConnection(object):
     def serve_all(self):
         self.setup()
 
-        while not self.closing:
+        while not self.closing and not self.server.shutting_down:
             self.killable = True
 
             try:
@@ -121,6 +121,7 @@ class TCPConnection(object):
         self.socket.close()
         self.closed = True
         self.server.descriptor_counter.release()
+        self.server.open_conns -= 1
 
     def log_access(self, access_time, request, metadata, sent):
         pass
