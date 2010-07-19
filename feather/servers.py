@@ -157,6 +157,10 @@ class TCPServer(BaseServer):
                     elif error.args[0] == errno.EINVAL:
                         # server socket was shut down
                         break
+                    elif error.args[0] == errno.EBADF:
+                        # believe it or not, this is the graceful shutdown
+                        # case. see the comments in shutdown() below
+                        break
                     else:
                         raise
         except KeyboardInterrupt:
@@ -175,8 +179,21 @@ class TCPServer(BaseServer):
 
         # do a small timed wait until current requests are finished
         while self.open_conns:
-            greenhouse.pause_for(0.1)
+            greenhouse.pause_for(0.05)
 
+    def shutdown(self):
+        self.shutting_down = True
+
+        # there's no good way to interrupt an accept() call without shutting
+        # down the socket, and there may be sibling processes listening on the
+        # same socket that we want to leave alone. so this cheats, using the
+        # internals of greenhouse.io.Socket to bail out in only this process.
+
+        # wake up the greenlet blocked on the accept() call
+        self.socket._sock._readable.set()
+
+        # and also make sure the accept() call blows up with EBADF
+        self.socket._sock.close()
 
 class UDPServer(BaseServer):
     socket_type = socket.SOCK_DGRAM
