@@ -19,6 +19,7 @@ class BaseServer(object):
     socket_protocol = socket.SOL_IP
     worker_count = 5
     allow_reuse_address = True
+    environ_fd_name = "FEATHER_LISTEN_FD"
 
     def __init__(self, address):
         self.host, self.port = address
@@ -33,6 +34,11 @@ class BaseServer(object):
         if self.allow_reuse_address:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+    def pickup_environ_socket(self):
+        fd = int(os.environ[self.environ_fd_name])
+        self.socket = greenhouse.Socket(
+                fromsock=socket.fromfd(fd, socket.AF_INET, socket.SOCK_STREAM))
+
     def setup(self):
         self.pre_fork_setup()
         self.fork_children()
@@ -40,9 +46,12 @@ class BaseServer(object):
         self.is_setup = True
 
     def pre_fork_setup(self):
-        if not hasattr(self, "socket"):
-            self.init_socket()
-        self.socket.bind((self.host, self.port))
+        if self.environ_fd_name in os.environ:
+            self.pickup_environ_socket()
+        else:
+            if not hasattr(self, "socket"):
+                self.init_socket()
+            self.socket.bind((self.host, self.port))
 
     def post_fork_setup(self):
         pass
