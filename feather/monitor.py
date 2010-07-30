@@ -80,9 +80,9 @@ class Monitor(object):
 
     def master_sigwinch(self):
         # gracefully shutdown workers but stay up
-        #if os.getppid() != 1 and os.getpgrp() == os.getpid():
-        #    # ignore when not daemonized
-        #    return
+        if os.getppid() != 1 and os.getpgrp() == os.getpid():
+            # ignore when not daemonized, it could just be a window size change
+            return
         self.do_not_revive.update(self.workers.keys())
         self.die_with_last_worker = False
         self.signal_workers(signal.SIGQUIT)
