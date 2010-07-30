@@ -112,6 +112,7 @@ class TCPServer(BaseServer):
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
         self.killable = {}
+        self.done = greenhouse.Event()
 
     def pre_fork_setup(self):
         super(TCPServer, self).pre_fork_setup()
@@ -189,6 +190,8 @@ class TCPServer(BaseServer):
         # do a small timed wait until current requests are finished
         while self.open_conns:
             greenhouse.pause_for(0.05)
+
+        self.done.set()
 
     def shutdown(self):
         self.shutting_down = True
