@@ -26,7 +26,6 @@ class Monitor(object):
         self.fork_workers()
 
         self.done.wait()
-        sys.exit(0)
 
     ##
     ## Cooperative Signal Dispatching
@@ -179,6 +178,9 @@ class Monitor(object):
         self.server.setup()
 
     def fork_worker(self):
+        if not self.is_master:
+            return True
+
         scheduler.pause()
 
         tmpfd, tmpfname = tempfile.mkstemp()
@@ -221,6 +223,8 @@ class Monitor(object):
             os.kill(pid, signum)
 
     def worker_exited(self, pid):
+        if pid not in self.workers:
+            return
         self.workers.pop(pid).cancel()
         if pid in self.do_not_revive:
             self.do_not_revive.discard(pid)
@@ -259,7 +263,12 @@ class Monitor(object):
         now = time.time()
         checkin = os.fstat(tmpfd).st_ctime
         if now - checkin > self.WORKER_TIMEOUT:
-            os.kill(pid, signal.SIGKILL)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except EnvironmentError, exc:
+                if exc.args[0] != errno.ESRCH:
+                    raise
+            self.worker_exited(pid)
         else:
             self.workers[pid] = self.health_monitor(pid, tmpfd)
 
