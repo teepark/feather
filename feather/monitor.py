@@ -202,6 +202,9 @@ class Monitor(object):
     def worker_postfork(self, tmpfd):
         poller.set()
 
+        [t.cancel() for t in self.workers.values()]
+        self.workers = None
+
         self.worker_health_timer(tmpfd)
 
         self.is_master = False
