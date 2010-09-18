@@ -78,7 +78,7 @@ class HTTPError(Exception):
         self.headers = headers or []
 
 
-class SizeBoundFile(greenhouse.io.SocketFile):
+class SizeBoundFile(greenhouse.io.sockets.SocketFile):
     """a file object that doesn't attempt to read past a specified length.
 
     unless overridden, HTTPConnection uses this as request.content

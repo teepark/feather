@@ -16,7 +16,7 @@ class HTTPServerTests(FeatherTest):
             self.set_body('Hello, World!')
 
     def test_basic(self):
-        greenhouse.io.monkeypatch()
+        greenhouse.emulation.patch()
 
         with self.http_server(self.HelloWorldHandler, port=4545):
             self.assertEqual(
@@ -29,7 +29,7 @@ class HTTPServerTests(FeatherTest):
                 "http://localhost:4545/")
 
     def test_headers(self):
-        greenhouse.io.monkeypatch()
+        greenhouse.emulation.patch()
 
         with self.http_server(self.HelloWorldHandler, port=4545):
             response = urllib2.urlopen("http://localhost:4545/")
