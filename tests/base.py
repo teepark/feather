@@ -16,7 +16,7 @@ class FeatherTest(unittest.TestCase):
     def setUp(self):
         GTL.acquire()
 
-        greenhouse.io.unmonkeypatch()
+        greenhouse.emulation.unpatch()
 
         greenhouse.scheduler.state.awoken_from_events.clear()
         greenhouse.scheduler.state.timed_paused[:] = []
@@ -46,6 +46,7 @@ class FeatherTest(unittest.TestCase):
         yield server
 
         server.socket.shutdown(socket.SHUT_RDWR)
+        greenhouse.pause()
 
     @contextlib.contextmanager
     def http_server(self, request_handler, bind_addr="127.0.0.1", port=9999):
@@ -63,3 +64,4 @@ class FeatherTest(unittest.TestCase):
         yield server
 
         server.socket.shutdown(socket.SHUT_RDWR)
+        greenhouse.pause()
