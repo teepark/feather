@@ -2,6 +2,7 @@ import BaseHTTPServer
 import httplib
 import itertools
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -290,7 +291,10 @@ class HTTPConnection(connections.TCPConnection):
     def get_request(self):
         content = SizeBoundFile(self.socket, 0)
         content._ignore_length = True
-        request_line = content.readline()
+        try:
+            request_line = content.readline()
+        except socket.timeout:
+            return None
         self.killable = False
 
         if request_line in ('\n', '\r\n'):
