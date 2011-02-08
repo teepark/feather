@@ -207,6 +207,7 @@ class TCPServer(BaseServer):
         # and also make sure the accept() call blows up with EBADF
         self.socket._sock.close()
 
+
 class UDPServer(BaseServer):
     socket_type = socket.SOCK_DGRAM
     max_packet_size = 8192
