@@ -335,7 +335,7 @@ class HTTPConnection(connections.TCPConnection):
                     break
 
         scheme = url.scheme or "http"
-        host = headers.get('host') or url.netloc or self.server_address
+        host = headers.get('host') or url.netloc or self.server.host
 
         if 'content-length' in headers:
             content.length = int(headers['content-length'])
