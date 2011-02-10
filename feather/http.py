@@ -157,8 +157,9 @@ class HTTPRequestHandler(requests.RequestHandler):
         '''
         header = header.lower()
         for name, value in self._headers:
-            if name.lower() == header and \
-                    (required_value is None or value == required_value):
+            if (name.lower() == header
+                    and (required_value is None
+                        or value.lower() == required_value.lower())):
                 return True
         return False
 
