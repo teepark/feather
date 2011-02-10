@@ -193,8 +193,10 @@ class HTTPRequestHandler(requests.RequestHandler):
             self.add_header('Connection', 'close')
             closed = True
 
-        # we MUST either send a Content-Length or close the connection
-        if not self.has_header('content-length'):
+        # we MUST send a Content-Length, Transfer-Encoding 'chunked',
+        # or close the connection
+        if not self.has_header('content-length') \
+                and not self.has_header('transfer-encoding', 'chunked'):
             if isinstance(self._body, str):
                 self.add_header('Content-Length', len(self._body))
             else:
