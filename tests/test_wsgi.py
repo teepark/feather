@@ -31,7 +31,7 @@ class WSGIServerTests(FeatherTest):
         greenhouse.emulation.patch()
 
         def app(environ, start_response):
-            write = start_response("200, OK", [])
+            write = start_response("200 OK", [])
             write("written\n")
             return ["returned"]
 
