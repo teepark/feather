@@ -35,7 +35,7 @@ class _WSGIErrors(object):
 
 class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
     """a fully implemented HTTPRequestHandler, ready to run a WSGI app.
-    
+
     subclass and override the wsgiapp attribute to your wsgi application and
     you are off to the races.
     """

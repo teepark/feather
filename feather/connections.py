@@ -64,7 +64,7 @@ class TCPConnection(object):
 
             handler = self.request_handler(
                     self.client_address,
-                    (self.server.host, self.server.port),
+                    (self.server.name, self.server.port),
                     self)
 
             try:

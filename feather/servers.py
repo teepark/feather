@@ -21,8 +21,9 @@ class BaseServer(object):
     allow_reuse_address = True
     environ_fd_name = "FEATHER_LISTEN_FD"
 
-    def __init__(self, address):
+    def __init__(self, address, hostname=None):
         self.host, self.port = address
+        self.name = hostname or self.host
         self.is_setup = False
         self.shutting_down = False
 
