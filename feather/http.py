@@ -2,10 +2,6 @@ import BaseHTTPServer
 import httplib
 import itertools
 import logging
-import os
-import socket
-import subprocess
-import sys
 import time
 import traceback
 import urlparse
