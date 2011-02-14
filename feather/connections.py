@@ -120,15 +120,19 @@ class TCPConnection(object):
             if not self.closing:
                 greenhouse.pause()
 
-        self.cleanup()
+        self._cleanup()
 
-    def cleanup(self):
-        "override (call the super method) to add to connection cleanup"
+    def _cleanup(self):
         self.killable = False
         self.socket.close()
         self.closed = True
         self.server.descriptor_counter.release()
         self.server.open_conns -= 1
+        self.cleanup()
+
+    def cleanup(self):
+        "override to add to connection cleanup"
+        pass
 
     def log_access(self, access_time, request, metadata, sent):
         pass
