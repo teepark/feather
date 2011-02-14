@@ -100,8 +100,7 @@ class SizeBoundFile(greenhouse.io.sockets.SocketFile):
             data = super(SizeBoundFile, self)._read_chunk(size)
         else:
             data = ''
-        ldata = len(data)
-        self.collected += ldata
+        self.collected += len(data)
         return data
 
 
