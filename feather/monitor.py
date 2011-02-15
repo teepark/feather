@@ -4,7 +4,7 @@ import sys
 import tempfile
 import time
 
-from greenhouse import io, poller, scheduler, utils
+from greenhouse import poller, scheduler, utils
 
 
 class Monitor(object):
@@ -211,7 +211,7 @@ class Monitor(object):
             return False
 
         if self.workers is None:
-            os._exit(1)
+            sys.exit(1)
 
         self.worker_postfork(tmpfd)
         return True
