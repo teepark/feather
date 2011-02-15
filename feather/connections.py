@@ -1,3 +1,5 @@
+from __future__ import with_statement
+
 import datetime
 import errno
 import socket
@@ -36,21 +38,11 @@ class TCPConnection(object):
         self.client_address = client_address
         self.server = server
         self.closing = False
-        self.closed = False
 
     # be sure and implement this in concrete subclasses
     def get_request(self):
         "override to return an object representing a single request"
         raise NotImplementedError()
-
-    def _get_killable(self):
-        return self.fileno in self.server.killable
-    def _set_killable(self, value):
-        if value:
-            self.server.killable[self.fileno] = self
-        else:
-            self.server.killable.pop(self.fileno, None)
-    killable = property(_get_killable, _set_killable)
 
     def setup(self):
         "override to do extra setup for new connections"
@@ -60,8 +52,6 @@ class TCPConnection(object):
         self.setup()
 
         while not self.closing and not self.server.shutting_down:
-            self.killable = True
-
             handler = self.request_handler(
                     self.client_address,
                     (self.server.name, self.server.port),
@@ -74,11 +64,13 @@ class TCPConnection(object):
                 self.log_error(klass, exc, tb)
                 response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
+                self.server.connections.acquire()
             else:
                 if request is None:
                     # indicates timeout or connection terminated by client
                     break
 
+                self.server.connections.acquire()
                 access_time = datetime.datetime.now()
 
                 try:
@@ -116,18 +108,13 @@ class TCPConnection(object):
                 self.log_error(*sys.exc_info())
             else:
                 self.log_access(access_time, request, metadata, sent)
-
-            if not self.closing:
-                greenhouse.pause()
+            finally:
+                self.connections.release()
 
         self._cleanup()
 
     def _cleanup(self):
-        self.killable = False
         self.socket.close()
-        self.closed = True
-        self.server.descriptor_counter.release()
-        self.server.open_conns -= 1
         self.cleanup()
 
     def cleanup(self):

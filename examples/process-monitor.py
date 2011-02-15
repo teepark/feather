@@ -17,7 +17,7 @@ DEFAULT_PORT = 9000
 
 def app(environ, start_response):
     start_response("200 OK", [("Content-Type", "text/plain")])
-    return ["Hello World, from %d" % os.getpid()]
+    return ["Hello World, from %d!" % os.getpid()]
 
 
 def main():

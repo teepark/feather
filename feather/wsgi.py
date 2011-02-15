@@ -122,7 +122,6 @@ def server(address,
         wsgiapp,
         keepalive_timeout=30,
         traceback_body=False,
-        max_conns=None,
         worker_count=None):
     app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
 
@@ -137,7 +136,6 @@ def server(address,
     server = http.HTTPServer(address)
     server.connection_handler = Connection
     server.worker_count = worker_count or server.worker_count
-    server.max_conns = max_conns or server.max_conns
     return server
 
 
@@ -145,7 +143,6 @@ def serve(address,
         wsgiapp,
         keepalive_timeout=30,
         traceback_body=False,
-        max_conns=None,
         worker_count=None):
     "shortcut function to serve a wsgi app on an address"
     server(
@@ -153,6 +150,5 @@ def serve(address,
             wsgiapp,
             keepalive_timeout=keepalive_timeout,
             traceback_body=traceback_body,
-            max_conns=max_conns,
             worker_count=worker_count,
     ).serve()

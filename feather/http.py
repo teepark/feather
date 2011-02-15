@@ -294,7 +294,6 @@ class HTTPConnection(connections.TCPConnection):
             request_line = content.readline()
         except socket.timeout:
             return None
-        self.killable = False
 
         if request_line in ('\n', '\r\n'):
             request_line = content.readline()

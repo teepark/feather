@@ -88,41 +88,24 @@ class TCPServer(BaseServer):
       server can't accept them fast enough. its default is the maximum allowed
       by the system (socket.SOMAXCONN).
 
-    * max_conns is the number of connections to handle simultaneously per
-      worker process. it defaults to the maximum number of file descriptors one
-      process is allowed to have open, after accounting for stdin, stdout,
-      stderr and the listening socket. if you are running more than one
-      TCPServer together you should reduce max_conns to accomodate them all.
-
-    * descriptor_counter is a greenhouse.BoundedSemaphore that controls socket
-      and file object creation (created on setup()). if you open sockets (for
-      api calls or database connections) you may want to call
-      server.descriptor_counter.acquire() (and .release() when the socket
-      closes) to avoid EMFILE exceptions.
-
     the cleanup() method may also be overridden to add extra behavior at the
     server's exit
     """
     socket_type = socket.SOCK_STREAM
     listen_backlog = socket.SOMAXCONN
     connection_handler = connections.TCPConnection
-    max_conns = subprocess.MAXFD - 4 # stdin, stdout, stderr, listening socket
-    if isinstance(greenhouse.scheduler.state.poller, greenhouse.poller.Poll):
-        max_conns -= 1 # Poll and Epoll objects use up another fd
 
     def __init__(self, *args, **kwargs):
         super(TCPServer, self).__init__(*args, **kwargs)
-        self.killable = {}
         self.done = greenhouse.Event()
+        self.connections = greenhouse.Counter()
 
     def pre_fork_setup(self):
         super(TCPServer, self).pre_fork_setup()
         self.socket.listen(self.listen_backlog)
-        self.descriptor_counter = greenhouse.BoundedSemaphore(self.max_conns)
 
     def setup(self):
         super(TCPServer, self).setup()
-        self.open_conns = 0
 
     def serve(self):
         """run the server at the provided address forever.
@@ -137,33 +120,15 @@ class TCPServer(BaseServer):
         try:
             while not self.shutting_down:
                 try:
-                    # this will block until fewer than max_conns handlers exist
-                    self.descriptor_counter.acquire()
-
                     client_sock, client_address = self.socket.accept()
                     handler = self.connection_handler(
                             client_sock,
                             client_address,
                             self)
                     greenhouse.schedule(handler.serve_all)
-                    self.open_conns += 1
                 except socket.error, error:
-                    if error.args[0] == errno.EMFILE:
-                        # max open connections for the process
-                        if self.killable:
-                            # close all the connections that are
-                            # only open for keep-alive anyway
-                            for handler in self.killable.values():
-                                handler.socket.close()
-                                handler.closing = True
-                            self.killable.clear()
-                        else:
-                            # if all connections are active, just let the
-                            # semaphore block -- we already set its value to 0
-                            continue
-
-                    elif error.args[0] == errno.ENFILE:
-                        # max open connections for the machine
+                    if error.args[0] in (errno.ENFILE, errno.EMFILE):
+                        # max open connections
                         greenhouse.pause_for(0.01)
                     elif error.args[0] == errno.EINVAL:
                         # server socket was shut down
@@ -182,18 +147,9 @@ class TCPServer(BaseServer):
     def _cleanup(self):
         self.socket.close()
 
-        # kill all connections now that aren't actively serving requests
-        # and the rest won't pick up new requests because of self.shutting_down
-        for handler in self.killable.values():
-            handler.socket.close()
-            handler.closing = True
-
-        # do a small timed wait until current requests are finished
-        while self.open_conns:
-            greenhouse.pause_for(0.05)
-
         self.cleanup()
 
+        self.connections.wait()
         self.done.set()
 
     def cleanup(self):
