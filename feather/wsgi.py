@@ -1,4 +1,5 @@
 import itertools
+import logging
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -19,9 +20,22 @@ class _wsgiapp_callable(type):
                 metacls, name, bases, attrs)
 
 
+class _WSGIErrors(object):
+    def __init__(self, logger, urgency):
+        self._logger = logger
+        self._urgency = urgency
+
+    def write(self, data):
+        self._logger.log(self._urgency, data)
+    writeline = write
+
+    def writelines(self, lines):
+        self.write(''.join(lines))
+
+
 class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
     """a fully implemented HTTPRequestHandler, ready to run a WSGI app.
-    
+
     subclass and override the wsgiapp attribute to your wsgi application and
     you are off to the races.
     """
@@ -34,7 +48,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
             'wsgi.version': (1, 0),
             'wsgi.url_scheme': request.scheme or 'http',
             'wsgi.input': request.content,
-            'wsgi.errors': self.server._el_file,
+            'wsgi.errors': _WSGIErrors(self.server.error_log, logging.ERROR),
             'wsgi.multithread': False,
             'wsgi.multiprocess': self.server.worker_count > 1,
             'wsgi.run_once': False,
@@ -109,9 +123,7 @@ def server(address,
         keepalive_timeout=30,
         traceback_body=False,
         max_conns=None,
-        worker_count=None,
-        access_log=None,
-        error_log=None):
+        worker_count=None):
     app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
 
     class RequestHandler(WSGIHTTPRequestHandler):
@@ -122,8 +134,7 @@ def server(address,
         request_handler = RequestHandler
         keepalive_timeout = keepalive
 
-    server = http.HTTPServer(address, access_log=access_log,
-            error_log=error_log)
+    server = http.HTTPServer(address)
     server.connection_handler = Connection
     server.worker_count = worker_count or server.worker_count
     server.max_conns = max_conns or server.max_conns
@@ -135,9 +146,7 @@ def serve(address,
         keepalive_timeout=30,
         traceback_body=False,
         max_conns=None,
-        worker_count=None,
-        access_log=None,
-        error_log=None):
+        worker_count=None):
     "shortcut function to serve a wsgi app on an address"
     server(
             address,
@@ -146,6 +155,4 @@ def serve(address,
             traceback_body=traceback_body,
             max_conns=max_conns,
             worker_count=worker_count,
-            access_log=access_log,
-            error_log=error_log
     ).serve()

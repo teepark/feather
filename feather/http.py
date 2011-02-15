@@ -1,9 +1,7 @@
 import BaseHTTPServer
 import httplib
 import itertools
-import os
-import subprocess
-import sys
+import logging
 import time
 import traceback
 import urlparse
@@ -102,8 +100,7 @@ class SizeBoundFile(greenhouse.io.sockets.SocketFile):
             data = super(SizeBoundFile, self)._read_chunk(size)
         else:
             data = ''
-        ldata = len(data)
-        self.collected += ldata
+        self.collected += len(data)
         return data
 
 
@@ -155,8 +152,9 @@ class HTTPRequestHandler(requests.RequestHandler):
         '''
         header = header.lower()
         for name, value in self._headers:
-            if name.lower() == header and \
-                    (required_value is None or value == required_value):
+            if (name.lower() == header
+                    and (required_value is None
+                        or value.lower() == required_value.lower())):
                 return True
         return False
 
@@ -191,8 +189,10 @@ class HTTPRequestHandler(requests.RequestHandler):
             self.add_header('Connection', 'close')
             closed = True
 
-        # we MUST either send a Content-Length or close the connection
-        if not self.has_header('content-length'):
+        # we MUST send a Content-Length, Transfer-Encoding 'chunked',
+        # or close the connection
+        if not self.has_header('content-length') \
+                and not self.has_header('transfer-encoding', 'chunked'):
             if isinstance(self._body, str):
                 self.add_header('Content-Length', len(self._body))
             else:
@@ -290,7 +290,10 @@ class HTTPConnection(connections.TCPConnection):
     def get_request(self):
         content = SizeBoundFile(self.socket, 0)
         content._ignore_length = True
-        request_line = content.readline()
+        try:
+            request_line = content.readline()
+        except socket.timeout:
+            return None
         self.killable = False
 
         if request_line in ('\n', '\r\n'):
@@ -328,7 +331,7 @@ class HTTPConnection(connections.TCPConnection):
                     break
 
         scheme = url.scheme or "http"
-        host = headers.get('host') or url.netloc or self.server_address
+        host = headers.get('host') or url.netloc or self.server.host
 
         if 'content-length' in headers:
             content.length = int(headers['content-length'])
@@ -378,22 +381,19 @@ class HTTPConnection(connections.TCPConnection):
     def log_access(self, access_time, request, metadata, sent):
         code, head_len = metadata
         body_len = sent - head_len
-        self.server._al_file.writelines([
-            self.server.access_log_format % {
-                'ip': self._get_browser_ip(request),
-                'time': self.format_datetime(access_time),
-                'request_line': request.request_line.rstrip(),
-                'resp_code': code,
-                'body_len': body_len,
-                'referer': request.headers.get("http-referer", "-"),
-                'user_agent': request.headers.get("user-agent", "-"),
-            }])
-        self.server._al_file.flush()
+        self.server.access_log.info(self.server.access_log_format % {
+            'ip': self._get_browser_ip(request),
+            'time': self.format_datetime(access_time),
+            'request_line': request.request_line.rstrip(),
+            'resp_code': code,
+            'body_len': body_len,
+            'referer': request.headers.get("http-referer", "-"),
+            'user_agent': request.headers.get("user-agent", "-"),
+        })
 
     def log_error(self, klass, exc, tb):
-        self.server._el_file.write(
+        self.server.error_log.error(
                 "".join(traceback.format_exception(klass, exc, tb)))
-        self.server._el_file.flush()
 
 
 class HTTPServer(servers.TCPServer):
@@ -402,46 +402,9 @@ class HTTPServer(servers.TCPServer):
     connection_handler = HTTPConnection
 
     access_log_format = '%(ip)s - - [%(time)s] "%(request_line)s" ' + \
-            '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"\n'
-
-    max_conns = subprocess.MAXFD - 6
+            '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"'
 
     def __init__(self, *args, **kwargs):
-        self.access_log = kwargs.pop("access_log", None)
-        self.error_log = kwargs.pop("error_log", None)
-
         super(HTTPServer, self).__init__(*args, **kwargs)
-
-    def _setup_loggers(self):
-        if self.access_log:
-            dirpath, fname = os.path.split(os.path.abspath(self.access_log))
-            if not os.path.isdir(dirpath):
-                os.mkdir(dirpath)
-            self._al_file = greenhouse.File(self.access_log, 'a')
-            self._close_al = True
-        else:
-            self._al_file = sys.stdout
-            self._close_al = False
-
-        if self.error_log:
-            dirpath, fname = os.path.split(os.path.abspath(self.error_log))
-            if not os.path.isdir(dirpath):
-                os.mkdir(dirpath)
-            self._el_file = greenhouse.File(self.error_log, 'a')
-            self._close_el = True
-        else:
-            self._el_file = sys.stderr
-            self._close_el = False
-
-    def pre_fork_setup(self):
-        super(HTTPServer, self).pre_fork_setup()
-        self._setup_loggers()
-
-    def cleanup(self):
-        super(HTTPServer, self).cleanup()
-
-        if self._close_al:
-            self._al_file.close()
-
-        if self._close_el:
-            self._el_file.close()
+        self.access_log = logging.getLogger("feather.http.access")
+        self.error_log = logging.getLogger("feather.http.errors")

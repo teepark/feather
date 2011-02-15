@@ -64,7 +64,7 @@ class TCPConnection(object):
 
             handler = self.request_handler(
                     self.client_address,
-                    (self.server.host, self.server.port),
+                    (self.server.name, self.server.port),
                     self)
 
             try:
@@ -94,34 +94,45 @@ class TCPConnection(object):
             # in chunks and don't block the entire server the whole time
             first = True
             sent = 0
-            for chunk in response:
-                if not first:
-                    greenhouse.pause()
-                try:
-                    self.socket.sendall(chunk)
-                except socket.error, exc:
-                    if exc.args[0] == errno.EPIPE:
-                        # client disconnected. how rude.
-                        self.closing = True
-                        break
-                    raise
-                sent += len(chunk)
-                first = False
-
-            self.log_access(access_time, request, metadata, sent)
+            try:
+                # this needs to be in a try block as well since the
+                # handler.handle() above could have returned a generator, in
+                # which case in iteration here we are re-entering app code
+                for chunk in response:
+                    if not first:
+                        greenhouse.pause()
+                    try:
+                        self.socket.sendall(chunk)
+                    except socket.error, exc:
+                        if exc.args[0] == errno.EPIPE:
+                            # client disconnected. how rude.
+                            self.closing = True
+                            break
+                        raise
+                    sent += len(chunk)
+                    first = False
+            except Exception:
+                self.closing = True
+                self.log_error(*sys.exc_info())
+            else:
+                self.log_access(access_time, request, metadata, sent)
 
             if not self.closing:
                 greenhouse.pause()
 
-        self.cleanup()
+        self._cleanup()
 
-    def cleanup(self):
-        "override (call the super method) to add to connection cleanup"
+    def _cleanup(self):
         self.killable = False
         self.socket.close()
         self.closed = True
         self.server.descriptor_counter.release()
         self.server.open_conns -= 1
+        self.cleanup()
+
+    def cleanup(self):
+        "override to add to connection cleanup"
+        pass
 
     def log_access(self, access_time, request, metadata, sent):
         pass

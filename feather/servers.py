@@ -21,8 +21,9 @@ class BaseServer(object):
     allow_reuse_address = True
     environ_fd_name = "FEATHER_LISTEN_FD"
 
-    def __init__(self, address):
+    def __init__(self, address, hostname=None):
         self.host, self.port = address
+        self.name = hostname or self.host
         self.is_setup = False
         self.shutting_down = False
 
@@ -99,8 +100,8 @@ class TCPServer(BaseServer):
       server.descriptor_counter.acquire() (and .release() when the socket
       closes) to avoid EMFILE exceptions.
 
-    the cleanup() method may also be overridden (but call the super) to add
-    extra behavior at the server's exit
+    the cleanup() method may also be overridden to add extra behavior at the
+    server's exit
     """
     socket_type = socket.SOCK_STREAM
     listen_backlog = socket.SOMAXCONN
@@ -176,9 +177,9 @@ class TCPServer(BaseServer):
         except KeyboardInterrupt:
             pass
         finally:
-            self.cleanup()
+            self._cleanup()
 
-    def cleanup(self):
+    def _cleanup(self):
         self.socket.close()
 
         # kill all connections now that aren't actively serving requests
@@ -191,7 +192,12 @@ class TCPServer(BaseServer):
         while self.open_conns:
             greenhouse.pause_for(0.05)
 
+        self.cleanup()
+
         self.done.set()
+
+    def cleanup(self):
+        pass
 
     def shutdown(self):
         self.shutting_down = True
@@ -206,6 +212,7 @@ class TCPServer(BaseServer):
 
         # and also make sure the accept() call blows up with EBADF
         self.socket._sock.close()
+
 
 class UDPServer(BaseServer):
     socket_type = socket.SOCK_DGRAM

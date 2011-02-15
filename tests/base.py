@@ -37,7 +37,7 @@ class FeatherTest(unittest.TestCase):
         class Connection(http.HTTPConnection):
             request_handler = RequestHandler
 
-        server = http.HTTPServer((bind_addr, port), access_log="/dev/null")
+        server = http.HTTPServer((bind_addr, port))
         server.connection_handler = Connection
         server.worker_count = 1
         greenhouse.schedule(server.serve)
@@ -55,7 +55,7 @@ class FeatherTest(unittest.TestCase):
         class Connection(http.HTTPConnection):
             request_handler = handler
 
-        server = http.HTTPServer((bind_addr, port), access_log="/dev/null")
+        server = http.HTTPServer((bind_addr, port))
         server.connection_handler = Connection
         server.worker_count = 1
         greenhouse.schedule(server.serve)
