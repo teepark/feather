@@ -2,6 +2,7 @@
 # vim: fileencoding=utf8:et:sta:ai:sw=4:ts=4:sts=4
 
 import optparse
+import os
 import traceback
 
 from feather import wsgi, monitor
@@ -16,7 +17,7 @@ DEFAULT_PORT = 9000
 
 def app(environ, start_response):
     start_response("200 OK", [("Content-Type", "text/plain")])
-    return ["Hello, World!"]
+    return ["Hello World, from %d" % os.getpid()]
 
 
 def main():

@@ -11,7 +11,7 @@ class Monitor(object):
     def __init__(self, server, worker_count):
         self.server = server
         self.count = worker_count
-        self.is_master = True
+        self.master_pid = os.getpid()
         self.workers = {}
         self.do_not_revive = set()
         self.die_with_last_worker = False
@@ -37,11 +37,30 @@ class Monitor(object):
         def handle():
             if not self.is_master == was_master:
                 return
+            if signum not in self.signal_handlers:
+                return
             getattr(self, self.signal_handlers[signum])()
 
+    def master_signal_handler(self, signum, frame):
+        if not self.is_master:
+            return
+        self.signal_handler(signum, frame)
+
+    def worker_signal_handler(self, signum, frame):
+        if self.is_master:
+            return
+        self.signal_handler(signum, frame)
+
     ##
-    ## Master Signal Actions
+    ## Signal Handler Registries
     ##
+
+    worker_signal_handlers = {
+        signal.SIGQUIT: "worker_sigquit",
+        signal.SIGINT: "worker_sigint",
+        signal.SIGTERM: "worker_sigint",
+        signal.SIGUSR1: "worker_sigusr1",
+    }
 
     master_signal_handlers = {
         signal.SIGQUIT: "master_sigquit",
@@ -56,11 +75,15 @@ class Monitor(object):
         signal.SIGCHLD: "master_sigchld",
     }
 
+    ##
+    ## Master Signal Actions
+    ##
+
     def apply_master_signals(self):
         self.signal_handlers = self.master_signal_handlers
 
-        for signum in self.signal_handlers:
-            signal.signal(signum, self.signal_handler)
+        for signum in self.master_signal_handlers:
+            signal.signal(signum, self.master_signal_handler)
 
     def clear_master_signals(self):
         for signum in self.master_signal_handlers:
@@ -134,18 +157,11 @@ class Monitor(object):
     ## Worker Signal Actions
     ##
 
-    worker_signal_handlers = {
-        signal.SIGQUIT: "worker_sigquit",
-        signal.SIGINT: "worker_sigint",
-        signal.SIGTERM: "worker_sigint",
-        signal.SIGUSR1: "worker_sigusr1",
-    }
-
     def apply_worker_signals(self):
         self.signal_handlers = self.worker_signal_handlers
 
-        for signum in self.signal_handlers:
-            signal.signal(signum, self.signal_handler)
+        for signum in self.worker_signal_handlers:
+            signal.signal(signum, self.worker_signal_handler)
 
     def clear_worker_signals(self):
         for signum in self.worker_signal_handlers:
@@ -172,6 +188,10 @@ class Monitor(object):
     ## Worker Forking and Management
     ##
 
+    @property
+    def is_master(self):
+        return os.getpid() == self.master_pid
+
     def pre_worker_fork(self):
         self.apply_master_signals()
         self.server.worker_count = 1
@@ -186,9 +206,12 @@ class Monitor(object):
         tmpfd, tmpfname = tempfile.mkstemp()
         pid = os.fork()
 
-        if pid:
+        if pid and self.is_master:
             self.worker_forked(pid, tmpfd)
             return False
+
+        if self.workers is None:
+            os._exit(1)
 
         self.worker_postfork(tmpfd)
         return True
@@ -204,15 +227,14 @@ class Monitor(object):
     def worker_postfork(self, tmpfd):
         poller.set()
 
-        [t.cancel() for t in self.workers.values()]
+        self.clear_master_signals()
+        self.apply_worker_signals()
+
+        for t in self.workers.values():
+            t.cancel()
         self.workers = None
 
         self.worker_health_timer(tmpfd)
-
-        self.is_master = False
-
-        self.clear_master_signals()
-        self.apply_worker_signals()
 
         self.server.serve()
 
