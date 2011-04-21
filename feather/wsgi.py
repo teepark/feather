@@ -1,4 +1,3 @@
-import itertools
 import logging
 try:
     from cStringIO import StringIO
@@ -31,6 +30,19 @@ class _WSGIErrors(object):
 
     def writelines(self, lines):
         self.write(''.join(lines))
+
+
+# a replacement for itertools.chain that takes iterators (rather than taking
+# iterables and creating iterators) to work around the django.http.HttpResponse
+# behavior described here: http://code.djangoproject.com/ticket/13222
+def _chain(*iterators):
+    for iterator in iterators:
+        try:
+            while 1:
+                yield iterator.next()
+        except StopIteration:
+            # we're out of the while loop. good enough
+            pass
 
 
 class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
@@ -106,7 +118,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
                 first_chunk = body_iterable.next()
             except StopIteration:
                 first_chunk = ''
-            body = itertools.chain((prefix + first_chunk,), body_iterable)
+            body = _chain(iter((prefix + first_chunk,)), body_iterable)
 
         self.set_body(body)
 
