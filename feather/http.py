@@ -2,6 +2,7 @@ import BaseHTTPServer
 import httplib
 import itertools
 import logging
+import socket
 import time
 import traceback
 import urlparse
@@ -296,12 +297,18 @@ class HTTPConnection(connections.TCPConnection):
             return None
 
         if request_line in ('\n', '\r\n'):
-            request_line = content.readline()
+            try:
+                request_line = content.readline()
+            except socket.timeout:
+                return None
 
         if not request_line:
             return None
 
-        method, path, version_string = request_line.split(' ', 2)
+        try:
+            method, path, version_string = request_line.split(' ', 2)
+        except ValueError:
+            return None
         version_string = version_string.rstrip()
 
         if not method.isalpha() or method != method.upper():

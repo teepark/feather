@@ -65,6 +65,7 @@ class TCPConnection(object):
                 response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
                 self.server.connections.acquire()
+                access_time = datetime.datetime.now()
             else:
                 if request is None:
                     # indicates timeout or connection terminated by client
