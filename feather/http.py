@@ -227,7 +227,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         handler = getattr(self, "do_%s" % request.method, None)
 
         try:
-            if not handler or handler(request) is NotImplemented:
+            if handler is None or handler(request) is NotImplemented:
                 raise HTTPError(405) # Method Not Allowed
 
         except HTTPError, error:

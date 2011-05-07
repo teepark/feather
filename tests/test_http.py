@@ -64,6 +64,7 @@ class HTTPServerTests(FeatherTest):
             self.assertEqual(response.split("\r\n\r\n")[1], "Hello, World!")
 
             sock.send("GET / HTTP/1.1\r\nHost: localhost:6767\r\n\r\n")
+            sock.settimeout(0.1)
             response = sock.recv(8192)
             self.assertEqual(response, "")
 

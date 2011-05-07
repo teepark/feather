@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
 import optparse
+import traceback
 
 import feather.wsgi
+import greenhouse
+
+greenhouse.add_exception_handler(traceback.print_exception)
 
 
 DEFAULT_HOST = ""
@@ -22,4 +26,4 @@ if __name__ == "__main__":
 
     options, args = parser.parse_args()
     feather.wsgi.serve((options.host, options.port), wsgiapp,
-            traceback_body=True, keepalive_timeout=60)
+            traceback_body=True, keepalive_timeout=60, worker_count=1)

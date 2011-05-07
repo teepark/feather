@@ -19,7 +19,7 @@ class FeatherTest(unittest.TestCase):
         greenhouse.emulation.unpatch()
 
         greenhouse.scheduler.state.awoken_from_events.clear()
-        greenhouse.scheduler.state.timed_paused[:] = []
+        greenhouse.scheduler.state.timed_paused.clear()
         greenhouse.scheduler.state.paused[:] = []
         greenhouse.scheduler.state.descriptormap.clear()
         greenhouse.scheduler.state.to_run.clear()

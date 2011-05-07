@@ -37,6 +37,8 @@ class _WSGIErrors(object):
 # behavior described here: http://code.djangoproject.com/ticket/13222
 def _chain(*iterators):
     for iterator in iterators:
+        if not hasattr(iterator, "next"):
+            iterator = iter(iterator)
         try:
             while 1:
                 yield iterator.next()
@@ -118,7 +120,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
                 first_chunk = body_iterable.next()
             except StopIteration:
                 first_chunk = ''
-            body = _chain(iter((prefix + first_chunk,)), body_iterable)
+            body = _chain((prefix + first_chunk,), body_iterable)
 
         self.set_body(body)
 

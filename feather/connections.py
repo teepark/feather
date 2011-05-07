@@ -109,7 +109,7 @@ class TCPConnection(object):
             else:
                 self.log_access(access_time, request, metadata, sent)
             finally:
-                self.connections.release()
+                self.server.connections.release()
 
         self._cleanup()
 

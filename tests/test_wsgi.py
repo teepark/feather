@@ -37,7 +37,7 @@ class WSGIServerTests(FeatherTest):
 
         with self.wsgi_server(app, port=8888):
             self.assertEqual(
-                    urllib2.urlopen("http://localhost:8888/").read(),
+                    urllib2.urlopen("http://localhost:8888/", timeout=0.1).read(),
                     "written\nreturned")
 
     def test_headers(self):
@@ -78,6 +78,7 @@ class WSGIServerTests(FeatherTest):
             self.assertEqual(response.split("\r\n\r\n")[1], "Hello, World!")
 
             sock.send("GET / HTTP/1.1\r\nHost: localhost:5678\r\n\r\n")
+            sock.settimeout(0.1)
             response = sock.recv(8192)
             self.assertEqual(response, "")
 
