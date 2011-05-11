@@ -1,4 +1,6 @@
+import grp
 import os
+import pwd
 import signal
 import sys
 import tempfile
@@ -8,7 +10,7 @@ from greenhouse import poller, scheduler, utils
 
 
 class Monitor(object):
-    def __init__(self, server, worker_count):
+    def __init__(self, server, worker_count, user=None, group=None):
         self.server = server
         self.count = worker_count
         self.master_pid = os.getpid()
@@ -16,6 +18,16 @@ class Monitor(object):
         self.do_not_revive = set()
         self.die_with_last_worker = False
         self.done = utils.Event()
+
+        # if the user or group name is not a valid one,
+        # just let that exception propogate up
+        if isinstance(user, str):
+            user = pwd.getpwnam(user)[2]
+        self.worker_uid = user
+
+        if isinstance(group, str):
+            group = grp.getgrnam(group)[2]
+        self.worker_gid = group
 
     ##
     ## Main Entry Point
@@ -193,6 +205,14 @@ class Monitor(object):
         return os.getpid() == self.master_pid
 
     def pre_worker_fork(self):
+        if (self.worker_uid is not None and
+                os.geteuid() not in (0, self.worker_uid)):
+            raise RuntimeError("workers can't setuid from non-root")
+
+        if (self.worker_gid) is not None and
+                os.getegid() not in (0, self.worker_gid)):
+            raise RuntimeError("workers can't setgid from non-root")
+
         self.apply_master_signals()
         self.server.worker_count = 1
         self.server.setup()
@@ -225,6 +245,14 @@ class Monitor(object):
         self.workers[pid] = self.health_monitor(pid, tmpfd)
 
     def worker_postfork(self, tmpfd):
+        if (self.worker_uid is not None and
+                os.geteuid() not in (0, self.worker_uid)):
+            os.setuid(self.worker_uid)
+
+        if (self.worker_gid) is not None and
+                os.getegid() not in (0, self.worker_gid)):
+            os.setgid(self.worker_gid)
+
         poller.set()
 
         self.clear_master_signals()
