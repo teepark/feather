@@ -112,11 +112,14 @@ class TCPConnection(object):
             finally:
                 self.server.connections.release()
 
+            del handler, request
+
         self._cleanup()
 
     def _cleanup(self):
-        self.socket.close()
         self.cleanup()
+        self.socket.close()
+        del self.socket
 
     def cleanup(self):
         "override to add to connection cleanup"

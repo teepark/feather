@@ -49,9 +49,7 @@ class FeatherTest(unittest.TestCase):
         greenhouse.pause()
 
     @contextlib.contextmanager
-    def http_server(self, request_handler, bind_addr="127.0.0.1", port=9999):
-        handler = request_handler
-
+    def http_server(self, handler, bind_addr="127.0.0.1", port=9999):
         class Connection(http.HTTPConnection):
             request_handler = handler
 

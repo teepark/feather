@@ -204,7 +204,6 @@ class HTTPRequestHandler(requests.RequestHandler):
 
         if not self.connection.keepalive_timeout and not closed:
             self.add_header('Connection', 'close')
-            close = True
 
         headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
 

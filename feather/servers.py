@@ -137,8 +137,11 @@ class TCPServer(BaseServer):
                         # believe it or not, this is the graceful shutdown
                         # case. see the comments in shutdown() below
                         break
-                    else:
-                        raise
+                    raise
+                else:
+                    # might be a long time before the next accept call returns
+                    greenhouse.schedule(handler.serve_all)
+                    del handler, client_sock
         except KeyboardInterrupt:
             pass
         finally:
