@@ -205,11 +205,11 @@ class Monitor(object):
         return os.getpid() == self.master_pid
 
     def pre_worker_fork(self):
-        if (self.worker_uid is not None and
+        if (self.worker_uid is not None and \
                 os.geteuid() not in (0, self.worker_uid)):
             raise RuntimeError("workers can't setuid from non-root")
 
-        if (self.worker_gid) is not None and
+        if (self.worker_gid is not None and \
                 os.getegid() not in (0, self.worker_gid)):
             raise RuntimeError("workers can't setgid from non-root")
 
@@ -249,7 +249,7 @@ class Monitor(object):
                 os.geteuid() not in (0, self.worker_uid)):
             os.setuid(self.worker_uid)
 
-        if (self.worker_gid) is not None and
+        if (self.worker_gid is not None and
                 os.getegid() not in (0, self.worker_gid)):
             os.setgid(self.worker_gid)
 
