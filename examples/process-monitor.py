@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # vim: fileencoding=utf8:et:sta:ai:sw=4:ts=4:sts=4
 
+import logging
 import optparse
 import os
 import traceback
@@ -9,6 +10,7 @@ from feather import wsgi, monitor
 import greenhouse
 
 greenhouse.add_exception_handler(traceback.print_exception)
+logging.getLogger("feather").addHandler(logging.StreamHandler())
 
 
 DEFAULT_HOST = "127.0.0.1"

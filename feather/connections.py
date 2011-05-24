@@ -119,7 +119,7 @@ class TCPConnection(object):
     def _cleanup(self):
         self.cleanup()
         self.socket.close()
-        del self.socket
+        self.socket = None
 
     def cleanup(self):
         "override to add to connection cleanup"
