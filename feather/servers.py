@@ -125,7 +125,6 @@ class TCPServer(BaseServer):
                             client_sock,
                             client_address,
                             self)
-                    greenhouse.schedule(handler.serve_all)
                 except socket.error, error:
                     if error.args[0] in (errno.ENFILE, errno.EMFILE):
                         # max open connections

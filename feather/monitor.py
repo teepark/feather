@@ -304,10 +304,12 @@ class Monitor(object):
     WORKER_TIMEOUT = 2.0
 
     def health_monitor(self, pid, tmpfd):
-        return utils.Timer(
+        timer = utils.Timer(
                 self.WORKER_TIMEOUT,
                 self.health_monitor_check,
                 args=(pid, tmpfd))
+        timer.start()
+        return timer
 
     def health_monitor_check(self, pid, tmpfd):
         now = time.time()
@@ -323,10 +325,12 @@ class Monitor(object):
             self.workers[pid] = self.health_monitor(pid, tmpfd)
 
     def worker_health_timer(self, tmpfd):
-        return utils.Timer(
+        timer = utils.Timer(
                 self.WORKER_TIMEOUT / 2.0,
                 self.worker_health_check,
                 args=(tmpfd,))
+        timer.start()
+        return timer
 
     def worker_health_check(self, tmpfd):
         os.fchmod(tmpfd, 0644)
