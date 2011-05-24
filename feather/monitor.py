@@ -267,6 +267,8 @@ class Monitor(object):
         self.server.serve()
 
     def signal_workers(self, signum, pids=None):
+        if not self.is_master:
+            return
         pids = pids or self.workers.keys()
 
         for pid in pids:
