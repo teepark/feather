@@ -49,6 +49,11 @@ class HTTPRequest(object):
     content
         a file-like object from which you can read[line[s]]() the body of the
         request
+
+    remote_ip
+        the IP address from which the connection has been made. if a reverse
+        proxy is in use this won't correspond to the client's real IP address,
+        but the proxy is probably adding a header indicating that.
     '''
     __slots__ = [
             "request_line",
@@ -60,7 +65,8 @@ class HTTPRequest(object):
             "querystring",
             "fragment",
             "headers",
-            "content"]
+            "content",
+            "remote_ip"]
 
     def __init__(self, **kwargs):
         for name in self.__slots__:
@@ -351,7 +357,8 @@ class HTTPConnection(connections.TCPConnection):
                 querystring=url.query,
                 fragment=url.fragment,
                 headers=headers,
-                content=content)
+                content=content,
+                remote_ip=self.client_address[0])
 
     @staticmethod
     def format_datetime(dt):
@@ -381,7 +388,7 @@ class HTTPConnection(connections.TCPConnection):
             return request.headers['x-forwarded-for'].strip()
         if 'x-real-ip' in request.headers:
             return request.headers['x-real-ip'].strip()
-        return self.socket.getpeername()[0]
+        return request.remote_ip
 
     def log_access(self, access_time, request, metadata, sent):
         code, head_len = metadata
