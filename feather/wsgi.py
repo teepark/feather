@@ -1,4 +1,5 @@
 import logging
+import urllib
 try:
     from cStringIO import StringIO
 except ImportError:
@@ -67,7 +68,7 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
             'wsgi.multiprocess': self.server.worker_count > 1,
             'wsgi.run_once': False,
             'SCRIPT_NAME': '',
-            'PATH_INFO': request.path,
+            'PATH_INFO': urllib.unquote(request.path),
             'SERVER_NAME': self.server_address[0] or "localhost",
             'SERVER_PORT': str(self.server_address[1]),
             'REQUEST_METHOD': request.method,
