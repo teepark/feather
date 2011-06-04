@@ -72,7 +72,7 @@ class ChatServer(servers.TCPServer):
 
 
 if __name__ == "__main__":
-    greenhouse.add_exception_handler(traceback.print_exception)
+    greenhouse.add_global_exception_handler(traceback.print_exception)
     parser = optparse.OptionParser()
     parser.add_option("-H", "--host", default=DEFAULT_HOST)
     parser.add_option("-P", "--port", type="int", default=DEFAULT_PORT)
