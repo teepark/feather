@@ -7,7 +7,7 @@ from feather import http, wsgi
 import greenhouse
 
 
-greenhouse.add_global_exception_handler(traceback.print_exception)
+greenhouse.global_exception_handler(traceback.print_exception)
 
 GTL = greenhouse.Lock()
 

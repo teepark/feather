@@ -9,7 +9,7 @@ import traceback
 from feather import wsgi, monitor
 import greenhouse
 
-greenhouse.add_global_exception_handler(traceback.print_exception)
+greenhouse.global_exception_handler(traceback.print_exception)
 logging.getLogger("feather").addHandler(logging.StreamHandler())
 
 

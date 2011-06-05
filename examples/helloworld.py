@@ -7,7 +7,7 @@ import traceback
 import feather.wsgi
 import greenhouse
 
-greenhouse.add_global_exception_handler(traceback.print_exception)
+greenhouse.global_exception_handler(traceback.print_exception)
 logging.getLogger("feather.http").addHandler(logging.StreamHandler())
 
 
