@@ -211,7 +211,8 @@ class HTTPRequestHandler(requests.RequestHandler):
         if not self.connection.keepalive_timeout and not closed:
             self.add_header('Connection', 'close')
 
-        headers = '\r\n'.join('%s: %s' % pair for pair in self._headers)
+        headers = '\r\n'.join('%s: %s' % (k, v.replace('\n', '\n '))
+                for k, v in self._headers)
 
         head = 'HTTP/%s %d %s\r\n%s\r\n\r\n' % (
                 http_version, code, status, headers)
