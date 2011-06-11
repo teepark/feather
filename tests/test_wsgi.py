@@ -1,3 +1,5 @@
+from __future__ import with_statement
+
 import unittest
 import urllib2
 
@@ -37,7 +39,7 @@ class WSGIServerTests(FeatherTest):
 
         with self.wsgi_server(app, port=8888):
             self.assertEqual(
-                    urllib2.urlopen("http://localhost:8888/", timeout=0.1).read(),
+                    urllib2.urlopen("http://localhost:8888/").read(),
                     "written\nreturned")
 
     def test_headers(self):
