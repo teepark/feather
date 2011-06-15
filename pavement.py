@@ -47,3 +47,7 @@ def clean():
     for p in path(__file__).abspath().parent.walkfiles():
         if p.endswith(".pyc") or p.endswith(".pyo"):
             p.remove()
+
+@task
+def test():
+    sh("nosetests")
