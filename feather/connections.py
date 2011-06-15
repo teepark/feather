@@ -64,14 +64,14 @@ class TCPConnection(object):
                 self.log_error(klass, exc, tb)
                 response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
-                self.server.connections.acquire()
+                self.server.connections.increment()
                 access_time = datetime.datetime.now()
             else:
                 if request is None:
                     # indicates timeout or connection terminated by client
                     break
 
-                self.server.connections.acquire()
+                self.server.connections.increment()
                 access_time = datetime.datetime.now()
 
                 try:
@@ -110,7 +110,7 @@ class TCPConnection(object):
             else:
                 self.log_access(access_time, request, metadata, sent)
             finally:
-                self.server.connections.release()
+                self.server.connections.decrement()
 
             del handler, request
 
