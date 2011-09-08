@@ -246,12 +246,10 @@ class Monitor(object):
         self.workers[pid] = self.health_monitor(pid, tmpfd)
 
     def worker_postfork(self, tmpfd):
-        if (self.worker_uid is not None and
-                os.geteuid() not in (0, self.worker_uid)):
+        if self.worker_uid is not None:
             os.setuid(self.worker_uid)
 
-        if (self.worker_gid is not None and
-                os.getegid() not in (0, self.worker_gid)):
+        if self.worker_gid is not None:
             os.setgid(self.worker_gid)
 
         poller.set()
