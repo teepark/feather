@@ -225,6 +225,9 @@ class Monitor(object):
         scheduler.pause()
 
         tmpfd, tmpfname = tempfile.mkstemp()
+        if self.worker_uid is not None:
+            os.fchown(tmpfd, self.worker_uid, os.getegid())
+
         pid = os.fork()
 
         if pid and self.is_master:
