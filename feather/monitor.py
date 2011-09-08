@@ -299,7 +299,7 @@ class Monitor(object):
 
         pid = os.fork()
         if not pid:
-            os.execvpe(sys.argv[0], sys.argv, os.environ)
+            os.execvpe(sys.executable, sys.argv, os.environ)
 
     ##
     ## Health Checking
