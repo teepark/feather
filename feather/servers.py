@@ -17,7 +17,7 @@ class BaseServer(object):
     """
     address_family = socket.AF_INET
     socket_protocol = socket.SOL_IP
-    worker_count = 5
+    worker_count = 1
     allow_reuse_address = True
     environ_fd_name = "FEATHER_LISTEN_FD"
 
