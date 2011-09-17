@@ -44,7 +44,7 @@ class Monitor(object):
     ## Cooperative Signal Dispatching
     ##
 
-    def signal_handler(self, signum, frame):
+    def signal_handler(self, signum):
         was_master = self.is_master
         @scheduler.schedule
         def handle():
@@ -57,12 +57,12 @@ class Monitor(object):
     def master_signal_handler(self, signum, frame):
         if not self.is_master:
             return
-        self.signal_handler(signum, frame)
+        self.signal_handler(signum)
 
     def worker_signal_handler(self, signum, frame):
         if self.is_master:
             return
-        self.signal_handler(signum, frame)
+        self.signal_handler(signum)
 
     ##
     ## Signal Handler Registries
