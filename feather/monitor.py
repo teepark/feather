@@ -7,7 +7,7 @@ import sys
 import tempfile
 import time
 
-from greenhouse import poller, scheduler, utils
+from greenhouse import poller, scheduler, util
 
 
 # this is required to prevent signals from clobbering emulated syscalls like
@@ -23,7 +23,7 @@ class Monitor(object):
         self.workers = {}
         self.do_not_revive = set()
         self.die_with_last_worker = False
-        self.done = utils.Event()
+        self.done = util.Event()
 
         # if the user or group name is not a valid one,
         # just let that exception propogate up
@@ -313,7 +313,7 @@ class Monitor(object):
     WORKER_TIMEOUT = 2.0
 
     def health_monitor(self, pid, tmpfd):
-        timer = utils.Timer(
+        timer = util.Timer(
                 self.WORKER_TIMEOUT,
                 self.health_monitor_check,
                 args=(pid, tmpfd))
@@ -334,7 +334,7 @@ class Monitor(object):
             self.workers[pid] = self.health_monitor(pid, tmpfd)
 
     def worker_health_timer(self, tmpfd):
-        timer = utils.Timer(
+        timer = util.Timer(
                 self.WORKER_TIMEOUT / 2.0,
                 self.worker_health_check,
                 args=(tmpfd,))
