@@ -10,6 +10,11 @@ import time
 from greenhouse import poller, scheduler, utils
 
 
+# this is required to prevent signals from clobbering emulated syscalls like
+# accept() and recv()
+scheduler.set_ignore_eintr()
+
+
 class Monitor(object):
     def __init__(self, server, worker_count, user=None, group=None):
         self.server = server
