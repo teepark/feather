@@ -105,13 +105,6 @@ class SizeBoundFile(greenhouse.io.sockets.SocketFile):
         size = max(min(self.length - self.collected, size), 0)
         if size:
             data = super(SizeBoundFile, self)._read_chunk(size)
-
-            # if the client disconnected before finishing the upload, then
-            # raise rather than producing the unfinished buffer as though
-            # nothing went wrong (thanks Sergey Schetinin,
-            # https://plus.google.com/110081677554331361663/posts/ZCEu7EQUAmH)
-            if size and not data:
-                raise IOError("disconnected, unfinished body")
         else:
             data = ''
         self.collected += len(data)
