@@ -201,7 +201,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         if not self.has_header('content-length') \
                 and not self.has_header('transfer-encoding', 'chunked'):
             if isinstance(self._body, str):
-                self.add_header('Content-Length', len(self._body))
+                self.add_header('Content-Length', str(len(self._body)))
             else:
                 if not closed:
                     closed = True
