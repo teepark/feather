@@ -243,7 +243,8 @@ class Monitor(object):
             sys.exit(1)
 
         self.worker_postfork(tmpfd)
-        return True
+
+        self.server.serve()
 
     def fork_workers(self):
         for i in xrange(self.count - len(self.workers)):
@@ -270,8 +271,6 @@ class Monitor(object):
         self.workers = None
 
         self.worker_health_timer(tmpfd)
-
-        self.server.serve()
 
     def signal_workers(self, signum, pids=None):
         if not self.is_master:
