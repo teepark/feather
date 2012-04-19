@@ -7,12 +7,12 @@ import sys
 import tempfile
 import time
 
-from greenhouse import poller, scheduler, util
+from greenhouse import scheduler, util
 
 
 # this is required to prevent signals from clobbering emulated syscalls like
 # accept() and recv()
-scheduler.set_ignore_eintr()
+scheduler.set_ignore_interrupts()
 
 
 class Monitor(object):
@@ -261,7 +261,7 @@ class Monitor(object):
         if self.worker_gid is not None:
             os.setgid(self.worker_gid)
 
-        poller.set()
+        scheduler.reset_poller()
 
         self.clear_master_signals()
         self.apply_worker_signals()
