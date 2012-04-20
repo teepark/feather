@@ -10,11 +10,6 @@ import time
 from greenhouse import scheduler, util
 
 
-# this is required to prevent signals from clobbering emulated syscalls like
-# accept() and recv()
-scheduler.set_ignore_interrupts()
-
-
 class Monitor(object):
     def __init__(self, server, worker_count, user=None, group=None):
         self.server = server
@@ -100,6 +95,10 @@ class Monitor(object):
     def apply_master_signals(self):
         self.signal_handlers = self.master_signal_handlers
 
+        # this is required to prevent signals from clobbering emulated
+        # syscalls like accept() and recv()
+        scheduler.set_ignore_interrupts()
+
         for signum in self.master_signal_handlers:
             signal.signal(signum, self.master_signal_handler)
 
@@ -177,6 +176,10 @@ class Monitor(object):
 
     def apply_worker_signals(self):
         self.signal_handlers = self.worker_signal_handlers
+
+        # this is required to prevent signals from clobbering emulated
+        # syscalls like accept() and recv()
+        scheduler.set_ignore_interrupts()
 
         for signum in self.worker_signal_handlers:
             signal.signal(signum, self.worker_signal_handler)
