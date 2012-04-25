@@ -11,6 +11,12 @@ from greenhouse import scheduler, util
 
 
 class Monitor(object):
+
+    WORKER_TIMEOUT = 2.0
+    WORKER_CHECK_INTERVAL = WORKER_TIMEOUT / 2
+
+    ZOMBIE_CHECK_INTERVAL = 2.0
+
     def __init__(self, server, worker_count, user=None, group=None):
         self.server = server
         self.count = worker_count
@@ -19,6 +25,7 @@ class Monitor(object):
         self.do_not_revive = set()
         self.die_with_last_worker = False
         self.done = util.Event()
+        self.zombie_checker = None
 
         # if the user or group name is not a valid one,
         # just let that exception propogate up
@@ -225,6 +232,7 @@ class Monitor(object):
         self.apply_master_signals()
         self.server.worker_count = 1
         self.server.setup()
+        self.zombie_monitor()
 
     def fork_worker(self):
         if not self.is_master:
@@ -255,7 +263,7 @@ class Monitor(object):
                 break
 
     def worker_forked(self, pid, tmpfd):
-        self.workers[pid] = self.health_monitor(pid, tmpfd)
+        self.health_monitor(pid, tmpfd)
 
     def worker_postfork(self, tmpfd):
         if self.worker_uid is not None:
@@ -274,6 +282,7 @@ class Monitor(object):
         self.workers = None
 
         self.worker_health_timer(tmpfd)
+        self.zombie_checker.cancel()
 
     def signal_workers(self, signum, pids=None):
         if not self.is_master:
@@ -312,15 +321,13 @@ class Monitor(object):
     ## Health Checking
     ##
 
-    WORKER_TIMEOUT = 2.0
-
     def health_monitor(self, pid, tmpfd):
         timer = util.Timer(
                 self.WORKER_TIMEOUT,
                 self.health_monitor_check,
                 args=(pid, tmpfd))
         timer.start()
-        return timer
+        self.workers[pid] = timer
 
     def health_monitor_check(self, pid, tmpfd):
         now = time.time()
@@ -333,11 +340,11 @@ class Monitor(object):
                     raise
             self.worker_exited(pid)
         else:
-            self.workers[pid] = self.health_monitor(pid, tmpfd)
+            self.health_monitor(pid, tmpfd)
 
     def worker_health_timer(self, tmpfd):
         timer = util.Timer(
-                self.WORKER_TIMEOUT / 2.0,
+                self.WORKER_CHECK_INTERVAL,
                 self.worker_health_check,
                 args=(tmpfd,))
         timer.start()
@@ -346,3 +353,23 @@ class Monitor(object):
     def worker_health_check(self, tmpfd):
         os.fchmod(tmpfd, 0644)
         self.worker_health_timer(tmpfd)
+
+    ##
+    ## Extra Zombie Cleanup
+    ##
+
+    def zombie_monitor(self):
+        timer = util.Timer(
+                self.ZOMBIE_CHECK_INTERVAL,
+                self.zombie_check)
+        timer.start()
+        self.zombie_checker = timer
+
+    def zombie_check(self):
+        try:
+            while os.waitpid(-1, os.WNOHANG)[0]: pass
+        except EnvironmentError, err:
+            if err.args[0] != errno.ECHILD:
+                raise
+        finally:
+            self.zombie_monitor()
