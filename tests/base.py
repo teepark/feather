@@ -24,7 +24,7 @@ class FeatherTest(unittest.TestCase):
         greenhouse.scheduler.state.descriptormap.clear()
         greenhouse.scheduler.state.to_run.clear()
 
-        greenhouse.poller.set()
+        greenhouse.reset_poller()
 
     def tearDown(self):
         GTL.release()

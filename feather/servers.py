@@ -61,7 +61,7 @@ class BaseServer(object):
         for i in xrange(self.worker_count - 1):
             if not os.fork():
                 # children will need their own epoll object
-                greenhouse.poller.set()
+                greenhouse.reset_poller()
                 break # no grandchildren
 
     def serve(self):
