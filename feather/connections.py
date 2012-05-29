@@ -38,6 +38,7 @@ class TCPConnection(object):
         self.client_address = client_address
         self.server = server
         self.closing = False
+        self.push_lock = greenhouse.Lock()
 
     # be sure and implement this in concrete subclasses
     def get_request(self):
@@ -47,6 +48,25 @@ class TCPConnection(object):
     def setup(self):
         "override to do extra setup for new connections"
         pass
+
+    def push(self, output):
+        with self.push_lock:
+            first = True
+            sent = 0
+            for chunk in output:
+                if not first:
+                    greenhouse.pause()
+                first = False
+                try:
+                    self.socket.sendall(chunk)
+                except socket.error, exc:
+                    if exc.args[0] == errno.EPIPE:
+                        # client disconnected
+                        self.closing = True
+                        break
+                    raise
+                sent += len(chunk)
+        return sent
 
     def serve_all(self):
         self.setup()
@@ -85,25 +105,11 @@ class TCPConnection(object):
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
-            first = True
-            sent = 0
             try:
                 # this needs to be in a try block as well since the
                 # handler.handle() above could have returned a generator, in
                 # which case in iteration here we are re-entering app code
-                for chunk in response:
-                    if not first:
-                        greenhouse.pause()
-                    try:
-                        self.socket.sendall(chunk)
-                    except socket.error, exc:
-                        if exc.args[0] == errno.EPIPE:
-                            # client disconnected. how rude.
-                            self.closing = True
-                            break
-                        raise
-                    sent += len(chunk)
-                    first = False
+                sent = self.push(response)
             except Exception:
                 self.closing = True
                 self.log_error(*sys.exc_info())
