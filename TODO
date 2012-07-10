@@ -1,0 +1,25 @@
+DOCS
+- monitor api documentation, all around
+- prose documentation on good patterns
+  - graceful restart
+  - graceful restart with rollback option
+
+LOGGING
+- rename logger for access log to "feather.log.access"
+- rename logger for error log to "feather.log.error"
+- have the monitor log to logger "feather.monitor"
+- look into more logging for other parts of feather
+- a configure_logging() function in __init__.py like greenhouse's
+
+HOOKS
+- some functions should become _-prefixed and call the unprefixed version (defined empty)
+  - pre_worker_fork
+  - worker_postfork
+  - worker_forked
+  - worker_exited (should not be called for legitimate exits like on SIGTTOU)
+- evaluate what arguments should be passed into each hook
+
+MANAGEMENT
+- workers should be numbered
+  - when a worker dies the replacement gets the same number as the one it replaces
+- create .pid files with names generated from the worker number
