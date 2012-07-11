@@ -1,8 +1,18 @@
 DOCS
 - monitor api documentation, all around
 - prose documentation on good patterns
-  - graceful restart
+  - graceful restart:
+    * SIGUSR2 master
+    * once new workers are all up (see READY NOTIFICATION below),
+      SIGQUIT old master
   - graceful restart with rollback option
+    * SIGUSR2 master
+    * once new workers are all up, SIGWINCH old master
+    * monitor, test
+    * a) all is good, so SIGQUIT old master
+      b) all is not good, so:
+         * SIGHUP old master
+         * once new workers for old master are up, SIGQUIT new master
 
 LOGGING
 - rename logger for access log to "feather.log.access"
@@ -12,14 +22,36 @@ LOGGING
 - a configure_logging() function in __init__.py like greenhouse's
 
 HOOKS
-- some functions should become _-prefixed and call the unprefixed version (defined empty)
+- some functions should become _-prefixed and call the unprefixed
+  version (defined empty)
   - pre_worker_fork
   - worker_postfork
   - worker_forked
-  - worker_exited (should not be called for legitimate exits like on SIGTTOU)
+  - worker_exited (should not be called for legitimate exits like on
+    SIGTTOU)
 - evaluate what arguments should be passed into each hook
 
 MANAGEMENT
 - workers should be numbered
-  - when a worker dies the replacement gets the same number as the one it replaces
+  - when a worker dies the replacement gets the same number as the one
+    it replaces
 - create .pid files with names generated from the worker number
+
+READY NOTIFICATION
+- create a programmatic means by which a new monitor master indicates
+  that all its children are up and ready to serve
+- purpose:
+    it will make the graceful restart process possible for a script.
+    as it is, there is no way to know that a new master's workers are
+    all up and running and therefore that it is safe to kill off the
+    old master.
+- proposal:
+  * all feather servers get a 'ready' attribute, it is a
+    greenhouse.util.Event that gets set as the last thing to happen
+    before it enters the accept loop
+  * before forking the children, monitor master creates a pipe
+  * each child, once the ready event has been set, grabs an fcntl lock
+    on the master's pid file and writes its own pid to the pipe
+  * once it has heard from all the children it just started, the
+    master writes a null byte to a file. filename is configured along
+    with pidfiles etc, if left null then no notification is given
