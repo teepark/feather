@@ -42,7 +42,7 @@ class Monitor(object):
     ##
 
     def serve(self):
-        self.pre_worker_fork()
+        self._pre_worker_fork()
         self.fork_workers()
 
         self.done.wait()
@@ -175,7 +175,7 @@ class Monitor(object):
     def master_sigchld(self):
         # clean up after a dead worker
         pid, status = os.waitpid(-1, os.WNOHANG)
-        self.worker_exited(pid)
+        self._worker_exited(pid)
 
     ##
     ## Worker Signal Actions
@@ -221,6 +221,9 @@ class Monitor(object):
         return os.getpid() == self.master_pid
 
     def pre_worker_fork(self):
+        pass
+
+    def _pre_worker_fork(self):
         if (self.worker_uid is not None and
                 os.geteuid() not in (0, self.worker_uid)):
             raise RuntimeError("workers can't setuid from non-root")
@@ -233,6 +236,8 @@ class Monitor(object):
         self.server.worker_count = 1
         self.server.setup()
         self.zombie_monitor()
+
+        self.pre_worker_fork()
 
     def fork_worker(self):
         if not self.is_master:
@@ -247,13 +252,13 @@ class Monitor(object):
         pid = os.fork()
 
         if pid and self.is_master:
-            self.worker_forked(pid, tmpfd)
+            self._worker_forked(pid, tmpfd)
             return False
 
         if self.workers is None:
             sys.exit(1)
 
-        self.worker_postfork(tmpfd)
+        self._worker_postfork(tmpfd)
 
         self.server.serve()
 
@@ -262,10 +267,17 @@ class Monitor(object):
             if self.fork_worker():
                 break
 
-    def worker_forked(self, pid, tmpfd):
-        self.health_monitor(pid, tmpfd)
+    def worker_forked(self):
+        pass
 
-    def worker_postfork(self, tmpfd):
+    def _worker_forked(self, pid, tmpfd):
+        self.health_monitor(pid, tmpfd)
+        self.worker_forked()
+
+    def worker_postfork(self):
+        pass
+
+    def _worker_postfork(self, tmpfd):
         if self.worker_uid is not None:
             os.setuid(self.worker_uid)
 
@@ -284,6 +296,8 @@ class Monitor(object):
         self.worker_health_timer(tmpfd)
         self.zombie_checker.cancel()
 
+        self.worker_postfork()
+
     def signal_workers(self, signum, pids=None):
         if not self.is_master:
             return
@@ -292,13 +306,19 @@ class Monitor(object):
         for pid in pids:
             os.kill(pid, signum)
 
-    def worker_exited(self, pid):
+    def worker_exited(self):
+        pass
+
+    def _worker_exited(self, pid):
         if pid not in self.workers:
+            # this could be another master that was created
+            # by a SIGUSR2 handler and then killed off
             return
         self.workers.pop(pid).cancel()
         if pid in self.do_not_revive:
             self.do_not_revive.discard(pid)
         else:
+            self.worker_exited()
             if self.fork_worker():
                 return
 
@@ -338,7 +358,7 @@ class Monitor(object):
             except EnvironmentError, exc:
                 if exc.args[0] != errno.ESRCH:
                     raise
-            self.worker_exited(pid)
+            self._worker_exited(pid)
         else:
             self.health_monitor(pid, tmpfd)
 
@@ -367,9 +387,15 @@ class Monitor(object):
 
     def zombie_check(self):
         try:
-            while os.waitpid(-1, os.WNOHANG)[0]: pass
-        except EnvironmentError, err:
-            if err.args[0] != errno.ECHILD:
-                raise
+            while 1:
+                try:
+                    pid, status = os.waitpid(-1, os.WNOHANG)
+                except EnvironmentError, err:
+                    if err.args[0] == errno.ECHILD:
+                        break
+                    raise
+                if not pid:
+                    break
+            self._worker_exited(pid)
         finally:
             self.zombie_monitor()

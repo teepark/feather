@@ -22,19 +22,18 @@ LOGGING
 - a configure_logging() function in __init__.py like greenhouse's
 
 HOOKS
-- some functions should become _-prefixed and call the unprefixed
-  version (defined empty)
-  - pre_worker_fork
-  - worker_postfork
-  - worker_forked
-  - worker_exited (should not be called for legitimate exits like on
-    SIGTTOU)
 - evaluate what arguments should be passed into each hook
+* pre_worker_fork
+* worker_postfork
+* worker_forked
+* worker_exited
 
 MANAGEMENT
 - workers should be numbered
   - when a worker dies the replacement gets the same number as the one
     it replaces
+  - worker_postfork, worker_forked and worker_exited hooks should be
+    passed both the worker number and pid of the affected worker
 - create .pid files with names generated from the worker number
 
 READY NOTIFICATION
