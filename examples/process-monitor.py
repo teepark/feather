@@ -6,11 +6,12 @@ import optparse
 import os
 import traceback
 
+import feather
 from feather import wsgi, monitor
 import greenhouse
 
 greenhouse.global_exception_handler(traceback.print_exception)
-logging.getLogger("feather").addHandler(logging.StreamHandler())
+feather.configure_logging(level=logging.WARN)
 
 
 DEFAULT_HOST = "127.0.0.1"
