@@ -51,3 +51,8 @@ def clean():
 @task
 def test():
     sh("nosetests")
+
+@task
+@needs('install', 'clean', 'test')
+def refresh():
+    pass
