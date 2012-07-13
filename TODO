@@ -33,6 +33,7 @@ MANAGEMENT
   - worker_postfork, worker_forked and worker_exited hooks should be
     passed both the worker number and pid of the affected worker
 - create .pid files with names generated from the worker number
+- have the master clean up tempfiles whenever children exit
 
 READY NOTIFICATION
 - create a programmatic means by which a new monitor master indicates
