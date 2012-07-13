@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+# TODO: do away with this argument once we have pidfiles
+MASTER_PID=$1
+shift
+if [ -z "$MASTER_PID" ]; then
+    echo "usage: ./bounce <master-pid>" >&2
+    exit 1
+fi
+
+mkfifo /tmp/feather-ready 2>/dev/null
+
+kill -USR2 $MASTER_PID
+cat /tmp/feather-ready
+kill -QUIT $MASTER_PID

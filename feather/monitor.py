@@ -1,14 +1,17 @@
 import errno
+import fcntl
 import grp
 import logging
 import os
 import pwd
 import signal
+import stat
+import struct
 import sys
 import tempfile
 import time
 
-from greenhouse import scheduler, util
+from greenhouse import io, scheduler, util
 
 
 master_log = logging.getLogger("feather.monitor.master")
@@ -22,15 +25,19 @@ class Monitor(object):
 
     ZOMBIE_CHECK_INTERVAL = 2.0
 
-    def __init__(self, server, worker_count, user=None, group=None):
+    def __init__(self, server, worker_count, user=None, group=None,
+            notify_fifo=None):
         self.server = server
         self.count = worker_count
+        self.notify_fifo = notify_fifo
         self.master_pid = os.getpid()
         self.workers = {}
         self.do_not_revive = set()
         self.die_with_last_worker = False
         self.done = util.Event()
         self.zombie_checker = None
+        self.readiness_notifier = None
+        self.original = True
 
         # if the user or group name is not a valid one,
         # just let that exception propogate up
@@ -56,6 +63,8 @@ class Monitor(object):
         self.log.info("starting")
         self._pre_worker_fork()
         self.fork_workers()
+        if self.is_master:
+            self._post_worker_fork()
 
         self.done.wait()
 
@@ -272,6 +281,9 @@ class Monitor(object):
                 os.getegid() not in (0, self.worker_gid)):
             raise RuntimeError("workers can't setgid from non-root")
 
+        self.ready_r, self.ready_w = io.pipe()
+        self.ready_lockfd, lockfile = tempfile.mkstemp()
+
         self.apply_master_signals()
         self.server.worker_count = 1
         self.server.setup()
@@ -309,6 +321,46 @@ class Monitor(object):
             if self.fork_worker():
                 break
 
+    def _post_worker_fork(self):
+        self.original = False
+        self.readiness_notifier = scheduler.greenlet(self.notify_readiness)
+        scheduler.schedule(self.readiness_notifier)
+
+    def notify_readiness(self):
+        pids = set(self.workers.keys())
+
+        while pids:
+            pid = struct.unpack("!I", self.ready_r.read(4))[0]
+            if not self.is_master:
+                self.log.warn(
+                        "got a readiness notification in a worker, resending")
+                self.ready_w.write(struct.pack("!I", pid))
+                return
+            pids.remove(pid)
+            self.log.info("got readiness notification from %d, %d remaining" %
+                    (pid, len(pids)))
+
+        if self.notify_fifo:
+            try:
+                os.mknod(self.notify_fifo, 0644, stat.S_IFIFO)
+            except EnvironmentError, exc:
+                if exc.args[0] != errno.EEXIST:
+                    raise
+                self.log.info("couldn't create notify fifo, already exists")
+
+            self.log.info("notifying of readiness at %s" % self.notify_fifo)
+
+            try:
+                with io.File(self.notify_fifo, 'a') as fp:
+                    fp.write('\x00')
+            except EnvironmentError, exc:
+                self.log.warn("feather cluster ready; " +
+                        "notify fifo could not be opened")
+                if exc.args[0] != errno.ENXIO:
+                    raise
+        else:
+            self.log.info("feather cluster ready; no notify fifo configured")
+
     def worker_forked(self):
         pass
 
@@ -331,7 +383,13 @@ class Monitor(object):
             self.log.info("setting worker gid")
             os.setgid(self.worker_gid)
 
+        if self.readiness_notifier is not None:
+            scheduler.end(self.readiness_notifier)
+
         scheduler.reset_poller()
+
+        if self.original:
+            scheduler.schedule(self.worker_inform_ready)
 
         self.clear_master_signals()
         self.apply_worker_signals()
@@ -345,6 +403,21 @@ class Monitor(object):
         self.zombie_checker.cancel()
 
         self.worker_postfork()
+
+    def worker_inform_ready(self):
+        self.server.ready.wait()
+        self.log.info("indicating readiness to master")
+
+        send = struct.pack("!I", os.getpid())
+
+        # unless monkeypatching is in place,
+        # this will temporarily block the whole worker process
+        fcntl.flock(self.ready_lockfd, fcntl.LOCK_EX)
+
+        try:
+            self.ready_w.write(send)
+        finally:
+            fcntl.flock(self.ready_lockfd, fcntl.LOCK_UN)
 
     def signal_workers(self, signum, pids=None):
         if not self.is_master:

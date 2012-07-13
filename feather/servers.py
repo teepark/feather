@@ -26,6 +26,7 @@ class BaseServer(object):
         self.name = hostname or self.host
         self.is_setup = False
         self.shutting_down = False
+        self.ready = greenhouse.Event()
 
     def init_socket(self):
         self.socket = greenhouse.Socket(
@@ -104,9 +105,6 @@ class TCPServer(BaseServer):
         super(TCPServer, self).pre_fork_setup()
         self.socket.listen(self.listen_backlog)
 
-    def setup(self):
-        super(TCPServer, self).setup()
-
     def serve(self):
         """run the server at the provided address forever.
 
@@ -117,6 +115,7 @@ class TCPServer(BaseServer):
         if not self.is_setup:
             self.setup()
 
+        self.ready.set()
         try:
             while not self.shutting_down:
                 try:
@@ -180,6 +179,7 @@ class UDPServer(BaseServer):
         if not self.is_setup:
             self.setup()
 
+        self.ready.set()
         try:
             while not self.shutting_down:
                 self.handle_packet(*self.socket.recvfrom(self.max_packet_size))

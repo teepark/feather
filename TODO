@@ -43,13 +43,13 @@ READY NOTIFICATION
     as it is, there is no way to know that a new master's workers are
     all up and running and therefore that it is safe to kill off the
     old master.
-- proposal:
+- proposal: (DONE)
   * all feather servers get a 'ready' attribute, it is a
     greenhouse.util.Event that gets set as the last thing to happen
     before it enters the accept loop
   * before forking the children, monitor master creates a pipe
   * each child, once the ready event has been set, grabs an fcntl lock
-    on the master's pid file and writes its own pid to the pipe
+    on a lock file and writes its own pid to the pipe
   * once it has heard from all the children it just started, the
     master writes a null byte to a file. filename is configured along
     with pidfiles etc, if left null then no notification is given
