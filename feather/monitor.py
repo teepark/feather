@@ -284,9 +284,6 @@ class Monitor(object):
             self.log.warn("tried to fork a worker from a worker")
             return True
 
-        #TODO: why is this here?
-        scheduler.pause()
-
         tmpfd, tmpfname = tempfile.mkstemp()
         if self.worker_uid is not None:
             os.fchown(tmpfd, self.worker_uid, os.getegid())
