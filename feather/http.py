@@ -3,6 +3,7 @@ import httplib
 import itertools
 import logging
 import socket
+import ssl
 import time
 import traceback
 import urlparse
@@ -421,3 +422,31 @@ class HTTPServer(servers.TCPServer):
         super(HTTPServer, self).__init__(*args, **kwargs)
         self.access_log = logging.getLogger("feather.http.access")
         self.error_log = logging.getLogger("feather.http.errors")
+
+
+class HTTPSServer(HTTPServer):
+    def __init__(self, *args, **kwargs):
+        self.certfile = kwargs.pop('certfile', None)
+        self.keyfile = kwargs.pop('keyfile', None)
+        self.cert_reqs = kwargs.pop('cert_reqs', ssl.CERT_NONE)
+        self.ssl_version = kwargs.pop('ssl_version', ssl.PROTOCOL_TLSv1)
+        self.ca_certs = kwargs.pop('ca_certs', None)
+        self.ciphers = kwargs.pop('ciphers', None)
+
+        super(HTTPSServer, self).__init__(*args, **kwargs)
+
+        self.access_log = logging.getLogger("feather.https.access")
+        self.error_log = logging.getLogger("feather.https.errors")
+
+    def init_socket(self):
+        super(HTTPSServer, self).init_socket()
+        self.socket = greenhouse.wrap_socket(self.socket,
+                keyfile=self.keyfile,
+                certfile=self.certfile,
+                server_side=True,
+                cert_reqs=self.cert_reqs,
+                ssl_version=self.ssl_version,
+                ca_certs=self.ca_certs,
+                do_handshake_on_connect=True,
+                suppress_ragged_eofs=True,
+                ciphers=self.ciphers)

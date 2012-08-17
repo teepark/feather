@@ -135,9 +135,11 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
 
 def server(address,
         wsgiapp,
+        https=False,
         keepalive_timeout=30,
         traceback_body=False,
-        worker_count=None):
+        worker_count=None,
+        **https_kwargs):
     app, keepalive, tbbody = wsgiapp, keepalive_timeout, traceback_body
 
     class RequestHandler(WSGIHTTPRequestHandler):
@@ -148,7 +150,10 @@ def server(address,
         request_handler = RequestHandler
         keepalive_timeout = keepalive
 
-    server = http.HTTPServer(address)
+    if https:
+        server = http.HTTPSServer(address, **https_kwargs)
+    else:
+        server = http.HTTPServer(address)
     server.connection_handler = Connection
     server.worker_count = worker_count or server.worker_count
     return server
@@ -156,14 +161,18 @@ def server(address,
 
 def serve(address,
         wsgiapp,
+        https=False,
         keepalive_timeout=30,
         traceback_body=False,
-        worker_count=None):
+        worker_count=None,
+        **https_kwargs):
     "shortcut function to serve a wsgi app on an address"
     server(
             address,
             wsgiapp,
+            https,
             keepalive_timeout=keepalive_timeout,
             traceback_body=traceback_body,
             worker_count=worker_count,
+            **https_kwargs
     ).serve()
