@@ -1,5 +1,6 @@
 from __future__ import with_statement
 
+import os
 import unittest
 import urllib2
 
@@ -77,8 +78,9 @@ class FakeSocket(object):
         self._readable = greenhouse.Event()
         if starting_data:
             self._readable.set()
+        self._fileno = os.pipe()[0]
 
-    def recv(self, amount):
+    def recv(self, amount, flags=None):
         if not self.data:
             self._readable.wait()
 
@@ -95,10 +97,13 @@ class FakeSocket(object):
         self.data += data
 
     def fileno(self):
-        return 5
+        return self._fileno
 
     def settimeout(self, *args):
         pass
+
+    def gettimeout(self):
+        return None
 
 
 class SizeBoundFileTests(FeatherTest):
