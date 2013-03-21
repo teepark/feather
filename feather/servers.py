@@ -165,10 +165,10 @@ class TCPServer(BaseServer):
         # internals of greenhouse.io.Socket to bail out in only this process.
 
         # wake up the greenlet blocked on the accept() call
-        self.socket._sock._readable.set()
+        self.socket._readable.set()
 
         # and also make sure the accept() call blows up with EBADF
-        self.socket._sock.close()
+        self.socket.close()
 
 
 class UDPServer(BaseServer):

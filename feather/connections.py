@@ -2,6 +2,7 @@ from __future__ import with_statement
 
 import datetime
 import errno
+import os
 import socket
 import sys
 
@@ -124,6 +125,7 @@ class TCPConnection(object):
 
     def _cleanup(self):
         self.cleanup()
+        os.close(self.socket.fileno())
         self.socket.close()
         self.socket = None
 
