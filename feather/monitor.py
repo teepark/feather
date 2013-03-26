@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import errno
 import fcntl
 import grp
@@ -11,7 +13,9 @@ import sys
 import tempfile
 import time
 
-from greenhouse import io, scheduler, util
+from greenhouse import io, scheduler, util as gutil
+
+from . import util
 
 
 master_log = logging.getLogger("feather.monitor.master")
@@ -26,15 +30,16 @@ class Monitor(object):
     ZOMBIE_CHECK_INTERVAL = 2.0
 
     def __init__(self, server, worker_count, user=None, group=None,
-            notify_fifo=None):
+            notify_fifo=None, daemonize=False):
         self.server = server
         self.count = worker_count
         self.notify_fifo = notify_fifo
-        self.master_pid = os.getpid()
+        self.daemonize = daemonize
+        self.master_pid = None
         self.workers = {}
         self.do_not_revive = set()
         self.die_with_last_worker = False
-        self.done = util.Event()
+        self.done = gutil.Event()
         self.zombie_checker = None
         self.readiness_notifier = None
         self.original = True
@@ -60,6 +65,10 @@ class Monitor(object):
     ##
 
     def serve(self):
+        if self.daemonize and os.environ.get('DAEMON', None) != 'yes':
+            os.environ['DAEMON'] = 'yes'
+            util.background()
+        self.master_pid = os.getpid()
         self.log.info("starting")
         self._pre_worker_fork()
         self.fork_workers()
@@ -458,8 +467,7 @@ class Monitor(object):
         server = self.server
         os.environ[server.environ_fd_name] = str(server.socket.fileno())
 
-        pid = os.fork()
-        if not pid:
+        if not os.fork():
             self.log.info("in forked child, execing new master")
             os.execvpe(sys.executable, [sys.executable] + sys.argv, os.environ)
 
@@ -468,7 +476,7 @@ class Monitor(object):
     ##
 
     def health_monitor(self, pid, tmpfd):
-        timer = util.Timer(
+        timer = gutil.Timer(
                 self.WORKER_TIMEOUT,
                 self.health_monitor_check,
                 args=(pid, tmpfd))
@@ -491,7 +499,7 @@ class Monitor(object):
             self.health_monitor(pid, tmpfd)
 
     def worker_health_timer(self, tmpfd):
-        timer = util.Timer(
+        timer = gutil.Timer(
                 self.WORKER_CHECK_INTERVAL,
                 self.worker_health_check,
                 args=(tmpfd,))
@@ -508,7 +516,7 @@ class Monitor(object):
     ##
 
     def zombie_monitor(self):
-        timer = util.Timer(
+        timer = gutil.Timer(
                 self.ZOMBIE_CHECK_INTERVAL,
                 self.zombie_check)
         timer.start()

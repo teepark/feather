@@ -4,7 +4,7 @@ import socket
 import subprocess
 
 import greenhouse
-from feather import connections
+from feather import connections, util
 
 
 __all__ = ["BaseServer", "TCPServer", "UDPServer"]
@@ -21,12 +21,13 @@ class BaseServer(object):
     allow_reuse_address = True
     environ_fd_name = "FEATHER_LISTEN_FD"
 
-    def __init__(self, address, hostname=None):
+    def __init__(self, address, hostname=None, daemonize=False):
         self.host, self.port = address
         self.name = hostname or self.host
         self.is_setup = False
         self.shutting_down = False
         self.ready = greenhouse.Event()
+        self.daemonize = daemonize
 
     def init_socket(self):
         self.socket = greenhouse.Socket(
@@ -112,6 +113,10 @@ class TCPServer(BaseServer):
         greenlet) from the scheduler, so don't expect anything else to run in
         the calling greenlet until the server has been shut down.
         """
+        if self.daemonize and os.environ.get('DAEMON', None) != 'yes':
+            os.environ['DAEMON'] = 'yes'
+            util.background()
+
         if not self.is_setup:
             self.setup()
 
@@ -176,6 +181,10 @@ class UDPServer(BaseServer):
     max_packet_size = 8192
 
     def serve(self):
+        if self.daemonize and os.environ.get('DAEMON', None) != 'yes':
+            os.environ['DAEMON'] = 'yes'
+            util.background()
+
         if not self.is_setup:
             self.setup()
 

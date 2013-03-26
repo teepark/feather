@@ -2,6 +2,7 @@
 # vim: fileencoding=utf8:et:sta:ai:sw=4:ts=4:sts=4
 
 import logging
+import logging.handlers
 import optparse
 import os
 import traceback
@@ -11,7 +12,8 @@ from feather import wsgi, monitor
 import greenhouse
 
 greenhouse.global_exception_handler(traceback.print_exception)
-feather.configure_logging(level=logging.INFO)
+feather.configure_logging(level=logging.INFO,
+        handler=logging.handlers.SysLogHandler("/dev/log"))
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -27,6 +29,9 @@ def main():
     parser = optparse.OptionParser()
     parser.add_option("-H", "--host", default=DEFAULT_HOST)
     parser.add_option("-P", "--port", type="int", default=DEFAULT_PORT)
+    parser.add_option("-f", "--foreground", action="store_false",
+            dest="daemonize")
+    parser.add_option("-d", "--daemonize", action="store_true", default=False)
 
     options, args = parser.parse_args()
 
@@ -36,7 +41,8 @@ def main():
             traceback_body=True,
             keepalive_timeout=1)
 
-    mon = monitor.Monitor(server, 5, notify_fifo='/tmp/feather-ready')
+    mon = monitor.Monitor(server, 5, notify_fifo='/tmp/feather-ready',
+            daemonize=options.daemonize)
 
     mon.serve()
 
