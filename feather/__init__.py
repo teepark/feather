@@ -2,6 +2,10 @@ import logging
 import sys
 
 
+VERSION = (0, 1, 0, '')
+__version__ = ".".join(filter(None, map(str, VERSION)))
+
+
 def configure_logging(sublogger=None, filename=None, filemode=None, fmt=None,
         level=logging.INFO, stream=None, handler=None):
     if handler is None:
