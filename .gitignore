@@ -1,7 +1,7 @@
 *.pyc
 *.pyo
 .*.sw[op]
-feather.egg-info/*
+feather_http.egg-info/*
 MANIFEST.in
 build/*
 docs/build/*
