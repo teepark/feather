@@ -82,10 +82,10 @@ class TCPConnection(object):
                 request = self.get_request()
             except Exception:
                 klass, exc, tb = sys.exc_info()
+                self.server.connections.increment()
                 self.log_error(klass, exc, tb)
                 response, metadata = handler.handle_error(klass, exc, tb)
                 klass, exc, tb = None, None, None
-                self.server.connections.increment()
                 access_time = datetime.datetime.now()
             else:
                 if request is None:
