@@ -10,7 +10,7 @@ setup(
     version="0.1",
     author="Travis Parker",
     author_email="travis.parker@gmail.com",
-    url="http://github.com/teepark/python-lzf",
+    url="http://github.com/teepark/feather",
     license="BSD",
     classifiers = [
         "Development Status :: 4 - Beta",
