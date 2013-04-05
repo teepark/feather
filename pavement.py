@@ -59,4 +59,5 @@ def refresh():
 
 @task
 def docs():
+    sh("find docs/source/feather -name *.rst | xargs touch")
     sh("cd docs; make html")
