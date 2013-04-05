@@ -56,3 +56,7 @@ def test():
 @needs('install', 'clean', 'test')
 def refresh():
     pass
+
+@task
+def docs():
+    sh("cd docs; make html")
