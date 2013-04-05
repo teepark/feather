@@ -435,9 +435,6 @@ class HTTPSServer(HTTPServer):
 
         super(HTTPSServer, self).__init__(*args, **kwargs)
 
-        self.access_log = logging.getLogger("feather.https.access")
-        self.error_log = logging.getLogger("feather.https.errors")
-
     def init_socket(self):
         super(HTTPSServer, self).init_socket()
         self.socket = greenhouse.wrap_socket(self.socket,
