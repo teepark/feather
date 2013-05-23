@@ -37,6 +37,8 @@ class Monitor(object):
         self.daemonize = daemonize
         self.master_pid = None
         self.workers = {}
+        self.rev_workers = {}
+        self.health_checks = {}
         self.do_not_revive = set()
         self.die_with_last_worker = False
         self.done = gutil.Event()
@@ -156,7 +158,7 @@ class Monitor(object):
     def master_sigquit(self):
         # gracefully shutdown workers, then exit
         self.log.info("SIGQUIT received. gracefully shutting down")
-        self.do_not_revive.update(self.workers.keys())
+        self.do_not_revive.update(self.workers.values())
         self.die_with_last_worker = True
         if not self.workers:
             self.log.info("last worker done, exiting")
@@ -172,26 +174,25 @@ class Monitor(object):
             return
         self.log.info(
                 "SIGWINCH received. gracefully closing workers")
-        self.do_not_revive.update(self.workers.keys())
+        self.do_not_revive.update(self.workers.values())
         self.die_with_last_worker = False
         self.signal_workers(signal.SIGQUIT)
 
     def master_sighup(self):
         # gracefully shutdown and then re-fork workers
         self.log.info("SIGHUP received. bouncing workers")
-        self.die_with_last_worker = False
 
-        workers = self.workers.keys()
-
-        self.fork_workers()
-
-        self.signal_workers(signal.SIGQUIT, pids=workers)
+        if self.workers:
+            self.die_with_last_worker = False
+            self.signal_workers(signal.SIGQUIT, pids=self.workers.values())
+        else:
+            self.fork_workers()
 
     def master_sigint(self):
         # immediately kill workers, then exit
         self.log.info(
                 "SIGINT/TERM received. killing workers and exiting")
-        self.do_not_revive.update(self.workers.keys())
+        self.do_not_revive.update(self.workers.values())
         self.die_with_last_worker = True
         if not self.workers:
             self.log.info("last worker done, exiting")
@@ -202,22 +203,20 @@ class Monitor(object):
         # increment workers
         self.log.info("SIGTTIN received. incrementing worker count")
         self.count += 1
-        self.fork_workers()
+        self.fork_worker(self.count - 1)
 
     def master_sigttou(self):
         # decrement workers
         self.log.info(
                 "SIGTTOU received. gracefully closing one worker")
-        self.count -= 1
 
-        lucky = sorted(self.workers.keys())[0]
-        self.do_not_revive.add(lucky)
-        os.kill(lucky, signal.SIGQUIT)
+        unlucky = self.workers[len(self.workers) - 1]
+        self.count -= 1
+        self.do_not_revive.add(unlucky)
+        os.kill(unlucky, signal.SIGQUIT)
 
     def master_sigusr1(self):
-        # reopen logs
         self.log.info("SIGUSR1 received")
-        pass
 
     def master_sigusr2(self):
         # fork/exec new master with new workers
@@ -291,7 +290,8 @@ class Monitor(object):
             raise RuntimeError("workers can't setgid from non-root")
 
         self.ready_r, self.ready_w = io.pipe()
-        self.ready_lockfd, lockfile = tempfile.mkstemp()
+        self.ready_lockfd, self.lockfile = tempfile.mkstemp(
+                suffix='feather-lock')
 
         self.apply_master_signals()
         self.server.worker_count = 1
@@ -300,7 +300,7 @@ class Monitor(object):
 
         self.pre_worker_fork()
 
-    def fork_worker(self):
+    def fork_worker(self, wid):
         if not self.is_master:
             self.log.warn("tried to fork a worker from a worker")
             return True
@@ -313,21 +313,22 @@ class Monitor(object):
 
         if pid and self.is_master:
             self.log.info("worker forked: %d" % pid)
-            self._worker_forked(pid, tmpfd)
+            self._worker_forked(wid, pid, tmpfd)
             return False
 
         if self.workers is None:
             self.log.error("forked a worker from a worker, exiting")
             sys.exit(1)
 
-        self._worker_postfork(tmpfd)
+        self._worker_postfork(wid, tmpfd)
 
         self.server.serve()
+        return True
 
     def fork_workers(self):
-        self.log.info("forking %d workers" % (self.count - len(self.workers)))
-        for i in xrange(self.count - len(self.workers)):
-            if self.fork_worker():
+        self.log.info("forking %d workers" % (self.count,))
+        for i in xrange(self.count):
+            if self.fork_worker(i):
                 break
 
     def _post_worker_fork(self):
@@ -336,7 +337,7 @@ class Monitor(object):
         scheduler.schedule(self.readiness_notifier)
 
     def notify_readiness(self):
-        pids = set(self.workers.keys())
+        pids = set(self.workers.values())
 
         while pids:
             pid = struct.unpack("!I", self.ready_r.read(4))[0]
@@ -373,15 +374,17 @@ class Monitor(object):
     def worker_forked(self):
         pass
 
-    def _worker_forked(self, pid, tmpfd):
+    def _worker_forked(self, wid, pid, tmpfd):
+        self.workers[wid] = pid
+        self.rev_workers[pid] = wid
         self.log.info("starting health monitor for %d" % pid)
         self.health_monitor(pid, tmpfd)
         self.worker_forked()
 
-    def worker_postfork(self):
+    def worker_postfork(self, wid):
         pass
 
-    def _worker_postfork(self, tmpfd):
+    def _worker_postfork(self, wid, tmpfd):
         self.log.info("initializing worker")
 
         if self.worker_uid is not None:
@@ -403,15 +406,17 @@ class Monitor(object):
         self.clear_master_signals()
         self.apply_worker_signals()
 
-        for t in self.workers.values():
+        for t in self.health_checks.values():
             t.cancel()
         self.workers = None
+        self.rev_workers = None
+        self.health_checks = None
 
         self.log.info("starting health timer")
         self.worker_health_timer(tmpfd)
         self.zombie_checker.cancel()
 
-        self.worker_postfork()
+        self.worker_postfork(wid)
 
     def worker_inform_ready(self):
         self.server.ready.wait()
@@ -432,7 +437,7 @@ class Monitor(object):
         if not self.is_master:
             self.log.warn("tried signaling workers from a worker")
             return
-        pids = pids or self.workers.keys()
+        pids = pids or self.workers.values()
         self.log.info("signaling all %d workers with %d" % (len(pids), signum))
 
         for pid in pids:
@@ -442,17 +447,19 @@ class Monitor(object):
         pass
 
     def _worker_exited(self, pid):
-        if pid not in self.workers:
+        wid = self.rev_workers.pop(pid, None)
+        if wid is None:
             # this could be another master that was created
             # by a SIGUSR2 handler and then killed off
             return
-        self.workers.pop(pid).cancel()
+        self.health_checks.pop(pid).cancel()
+        del self.workers[wid]
         if pid in self.do_not_revive:
             self.do_not_revive.discard(pid)
         else:
             self.log.fatal("worker %d crashed, starting replacement" % pid)
             self.worker_crashed()
-            if self.fork_worker():
+            if self.fork_worker(wid):
                 return
 
         if self.die_with_last_worker and not self.workers:
@@ -481,7 +488,7 @@ class Monitor(object):
                 self.health_monitor_check,
                 args=(pid, tmpfd))
         timer.start()
-        self.workers[pid] = timer
+        self.health_checks[pid] = timer
 
     def health_monitor_check(self, pid, tmpfd):
         now = time.time()
