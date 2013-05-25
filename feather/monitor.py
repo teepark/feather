@@ -6,6 +6,7 @@ import grp
 import logging
 import os
 import pwd
+import shutil
 import signal
 import stat
 import struct
@@ -13,7 +14,7 @@ import sys
 import tempfile
 import time
 
-from greenhouse import io, scheduler, util as gutil
+from greenhouse import compat, io, scheduler, util as gutil
 
 from . import util
 
@@ -29,11 +30,18 @@ class Monitor(object):
 
     ZOMBIE_CHECK_INTERVAL = 2.0
 
+    NOTIFY_FIFO = 'notify'
+    MASTER_PIDFILE = 'master.pid'
+    WORKER_PIDFILE = 'worker%d.pid'
+    LOCKFILE = '.lock'
+    HEALTHFILE = '.worker%d'
+
     def __init__(self, server, worker_count, user=None, group=None,
-            notify_fifo=None, daemonize=False):
+            control_dir=None, daemonize=False):
         self.server = server
         self.count = worker_count
-        self.notify_fifo = notify_fifo
+        self.control_dir = control_dir or os.path.join(
+                tempfile.gettempdir(), 'feather-default')
         self.daemonize = daemonize
         self.master_pid = None
         self.workers = {}
@@ -56,6 +64,16 @@ class Monitor(object):
             group = grp.getgrnam(group)[2]
         self.worker_gid = group
 
+    def control_path(self, relative, create=True):
+        path = os.path.join(self.control_dir, relative)
+        if create:
+            try:
+                os.mknod(path, 0644 | stat.S_IFREG)
+            except EnvironmentError, exc:
+                if exc.args[0] != errno.EEXIST:
+                    raise
+        return path
+
     @property
     def log(self):
         if self.is_master:
@@ -67,17 +85,55 @@ class Monitor(object):
     ##
 
     def serve(self):
+        depth = os.environ.get('FEATHER_DEPTH', '-1')
+        try:
+            depth = int(depth) + 1
+        except ValueError:
+            depth = 0
+        os.environ['FEATHER_DEPTH'] = str(depth)
+
+        while 1:
+            control_dir = '%s-%d' % (self.control_dir, depth)
+            try:
+                os.mkdir(control_dir)
+            except EnvironmentError, exc:
+                if exc.args[0] != errno.EEXIST:
+                    raise
+                depth += 1
+            else:
+                break
+        self.control_dir = control_dir
+
+        notify_fifo = self.control_path(self.NOTIFY_FIFO, create=False)
+        try:
+            os.mknod(notify_fifo, stat.S_IFIFO | 0644)
+        except EnvironmentError, exc:
+            if exc.args[0] != errno.EEXIST:
+                raise
+
         if self.daemonize and os.environ.get('DAEMON', None) != 'yes':
             os.environ['DAEMON'] = 'yes'
             util.background()
-        self.master_pid = os.getpid()
-        self.log.info("starting")
-        self._pre_worker_fork()
-        self.fork_workers()
-        if self.is_master:
-            self._post_worker_fork()
 
-        self.done.wait()
+        self.log.info("starting")
+
+        self.master_pid = os.getpid()
+        with io.File(self.control_path(self.MASTER_PIDFILE), 'w') as fp:
+            fp.write(str(self.master_pid))
+
+        try:
+            self._pre_worker_fork()
+            self.fork_workers()
+            if self.is_master:
+                self._post_worker_fork()
+            self.done.wait()
+        finally:
+            if self.is_master:
+                try:
+                    shutil.rmtree(self.control_dir)
+                except EnvironmentError, exc:
+                    if exc.args[0] != errno.ENOENT:
+                        raise
 
     ##
     ## Cooperative Signal Dispatching
@@ -290,8 +346,8 @@ class Monitor(object):
             raise RuntimeError("workers can't setgid from non-root")
 
         self.ready_r, self.ready_w = io.pipe()
-        self.ready_lockfd, self.lockfile = tempfile.mkstemp(
-                suffix='feather-lock')
+        lockfile = self.control_path(self.LOCKFILE)
+        self.ready_lockfd = os.open(lockfile, os.O_RDONLY)
 
         self.apply_master_signals()
         self.server.worker_count = 1
@@ -305,7 +361,8 @@ class Monitor(object):
             self.log.warn("tried to fork a worker from a worker")
             return True
 
-        tmpfd, tmpfname = tempfile.mkstemp()
+        tmpfname = self.control_path(self.HEALTHFILE % wid)
+        tmpfd = os.open(tmpfname, os.O_RDONLY)
         if self.worker_uid is not None:
             os.fchown(tmpfd, self.worker_uid, os.getegid())
 
@@ -313,14 +370,14 @@ class Monitor(object):
 
         if pid and self.is_master:
             self.log.info("worker forked: %d" % pid)
-            self._worker_forked(wid, pid, tmpfd)
+            self._worker_forked(wid, pid, tmpfd, tmpfname)
             return False
 
         if self.workers is None:
             self.log.error("forked a worker from a worker, exiting")
             sys.exit(1)
 
-        self._worker_postfork(wid, tmpfd)
+        self._worker_postfork(wid, pid, tmpfd)
 
         self.server.serve()
         return True
@@ -350,42 +407,36 @@ class Monitor(object):
             self.log.info("got readiness notification from %d, %d remaining" %
                     (pid, len(pids)))
 
-        if self.notify_fifo:
-            try:
-                os.mknod(self.notify_fifo, 0644, stat.S_IFIFO)
-            except EnvironmentError, exc:
-                if exc.args[0] != errno.EEXIST:
-                    raise
-                self.log.info("couldn't create notify fifo, already exists")
+        notify_fifo = self.control_path(self.NOTIFY_FIFO, create=False)
+        self.log.info("notifying of readiness at %s" % notify_fifo)
+        try:
+            with io.File(notify_fifo, 'a') as fp:
+                fp.write('\x00')
+                fp.flush()
+        except EnvironmentError, exc:
+            self.log.warn("feather cluster ready; " +
+                    "notify fifo could not be opened")
+            if exc.args[0] != errno.ENXIO:
+                raise
 
-            self.log.info("notifying of readiness at %s" % self.notify_fifo)
-
-            try:
-                with io.File(self.notify_fifo, 'a') as fp:
-                    fp.write('\x00')
-            except EnvironmentError, exc:
-                self.log.warn("feather cluster ready; " +
-                        "notify fifo could not be opened")
-                if exc.args[0] != errno.ENXIO:
-                    raise
-        else:
-            self.log.info("feather cluster ready; no notify fifo configured")
-
-    def worker_forked(self):
+    def worker_forked(self, wid, pid):
         pass
 
-    def _worker_forked(self, wid, pid, tmpfd):
+    def _worker_forked(self, wid, pid, tmpfd, tmpfname):
         self.workers[wid] = pid
         self.rev_workers[pid] = wid
         self.log.info("starting health monitor for %d" % pid)
-        self.health_monitor(pid, tmpfd)
-        self.worker_forked()
+        self.health_monitor(pid, tmpfd, tmpfname)
+        self.worker_forked(wid, pid)
 
-    def worker_postfork(self, wid):
+    def worker_postfork(self, wid, pid):
         pass
 
-    def _worker_postfork(self, wid, tmpfd):
+    def _worker_postfork(self, wid, pid, tmpfd):
         self.log.info("initializing worker")
+
+        with io.File(self.control_path(self.WORKER_PIDFILE % wid), 'w') as fp:
+            fp.write(str(os.getpid()))
 
         if self.worker_uid is not None:
             self.log.info("setting worker uid")
@@ -407,7 +458,7 @@ class Monitor(object):
         self.apply_worker_signals()
 
         for t in self.health_checks.values():
-            t.cancel()
+            scheduler.end(t)
         self.workers = None
         self.rev_workers = None
         self.health_checks = None
@@ -416,7 +467,7 @@ class Monitor(object):
         self.worker_health_timer(tmpfd)
         self.zombie_checker.cancel()
 
-        self.worker_postfork(wid)
+        self.worker_postfork(wid, pid)
 
     def worker_inform_ready(self):
         self.server.ready.wait()
@@ -443,7 +494,7 @@ class Monitor(object):
         for pid in pids:
             os.kill(pid, signum)
 
-    def worker_crashed(self):
+    def worker_crashed(self, wid, pid):
         pass
 
     def _worker_exited(self, pid):
@@ -452,13 +503,13 @@ class Monitor(object):
             # this could be another master that was created
             # by a SIGUSR2 handler and then killed off
             return
-        self.health_checks.pop(pid).cancel()
+        scheduler.end(self.health_checks.pop(pid))
         del self.workers[wid]
         if pid in self.do_not_revive:
             self.do_not_revive.discard(pid)
         else:
             self.log.fatal("worker %d crashed, starting replacement" % pid)
-            self.worker_crashed()
+            self.worker_crashed(wid, pid)
             if self.fork_worker(wid):
                 return
 
@@ -482,15 +533,31 @@ class Monitor(object):
     ## Health Checking
     ##
 
-    def health_monitor(self, pid, tmpfd):
-        timer = gutil.Timer(
-                self.WORKER_TIMEOUT,
-                self.health_monitor_check,
-                args=(pid, tmpfd))
-        timer.start()
-        self.health_checks[pid] = timer
+    def health_monitor(self, pid, tmpfd, tmpfname):
+        checker = scheduler.greenlet(self.health_monitor_checker,
+                args=(pid, tmpfd, tmpfname))
+        scheduler.schedule(checker)
+        self.health_checks[pid] = checker
 
-    def health_monitor_check(self, pid, tmpfd):
+    def health_monitor_checker(self, pid, tmpfd, tmpfname):
+        now = time.time()
+        while 1:
+            scheduler.pause_until(now + self.WORKER_TIMEOUT)
+            now = time.time()
+            checkin = os.fstat(tmpfd).st_ctime
+            if now - checkin > self.WORKER_TIMEOUT:
+                self.log.critical("health monitor check failed for %d" % pid)
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except EnvironmentError, exc:
+                    if exc.args[0] != errno.ESRCH:
+                        raise
+                    self._worker_exited(pid)
+                return
+            else:
+                self.log.debug("health monitor check passed for %d" % pid)
+
+    def health_monitor_check(self, pid, tmpfd, tmpfname):
         now = time.time()
         checkin = os.fstat(tmpfd).st_ctime
         if now - checkin > self.WORKER_TIMEOUT:
