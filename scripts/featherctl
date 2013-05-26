@@ -1,0 +1,153 @@
+#!/usr/bin/env python
+# vim: fileencoding=utf8:et:sta:ai:sw=4:ts=4:sts=4
+
+import argparse
+import glob
+import multiprocessing
+import os
+import signal
+import sys
+import tempfile
+
+from feather import wsgi, monitor
+
+
+def control_dir(cluster_name):
+    dirs = glob.glob(os.path.join(tempfile.gettempdir(),
+            'feather-%s-*' % cluster_name))
+    if dirs:
+        return max(dirs)
+    return os.path.join(tempfile.gettempdir(),
+            'feather-%s-0' % cluster_name)
+
+def master_pid(cluster_name):
+    cd = control_dir(cluster_name)
+    if cd is None:
+        return None
+    if not os.path.isdir(cd):
+        return None
+    return int(open(os.path.join(cd, 'master.pid')).read())
+
+
+def status_cmd(environ, args):
+    for cdir in glob.glob(os.path.join(tempfile.gettempdir(), 'feather-*')):
+        count = cdir.rsplit('-', 1)[1]
+        cluster = cdir.rsplit(os.path.sep, 1)[1][8:-(len(count)+1)]
+
+        print "Cluster '%s' %s:" % (cluster, count)
+
+        with open(os.path.join(cdir, 'master.pid'), 'r') as fp:
+            mpid = fp.read().strip()
+        print "  master  : %s" % mpid
+
+        wpidfiles = glob.glob(os.path.join(cdir, 'worker*.pid'))
+        wpidfiles.sort()
+        for wpidfile in wpidfiles:
+            wid = wpidfile.rsplit(os.path.sep, 1)[1][6:-4]
+            with open(wpidfile, 'r') as fp:
+                wpid = fp.read().strip()
+            print "  worker %s: %s" % (wid, wpid)
+
+        print
+
+    return 0
+
+def start_cmd(environ, args):
+    app_mod, app_attr = args.wsgiapp.split(':', 1)
+    mod = __import__(app_mod)
+    for attr in app_mod.split('.')[1:]:
+        mod = getattr(mod, attr, None)
+        if mod is None:
+            sys.stderr.write('not a module: %s\n' % app_mod)
+            return 1
+    app = getattr(mod, app_attr, None)
+    if app is None:
+        sys.stderr.write('no attribute named %s\n' % app_attr)
+        return 1
+
+    cd = control_dir(args.cluster)
+
+    server = wsgi.server(
+            (args.host, args.port),
+            app,
+            traceback_body=args.traceback_body,
+            keepalive_timeout=args.keepalive_timeout)
+
+    mon = monitor.Monitor(server,
+            args.num_workers,
+            control_dir=cd.rsplit('-', 1)[0],
+            daemonize=True)
+
+    mon.serve()
+
+    # now read the null byte from the notify_fifo to block until ready
+    open(os.path.join(cd, 'notify'), 'r').read(1)
+    return 0
+
+def stop_cmd(environ, args):
+    sig = signal.SIGQUIT if args.graceful else signal.SIGTERM
+
+    mp = master_pid(args.cluster)
+    if mp is None:
+        sys.stderr.write('no control dir for %s\n' % args.cluster)
+        return 1
+    os.kill(mp, sig)
+    return 0
+
+def reload_cmd(environ, args):
+    mp = master_pid(args.cluster)
+    if mp is None:
+        sys.stderr.write('no control dir for %s\n' % args.cluster)
+        return 1
+    os.kill(mp, signal.SIGHUP)
+    return 0
+
+
+def main(environ, argv):
+    parser = argparse.ArgumentParser(prog='featherctl')
+    parser.add_argument('-c', '--cluster',
+            action='store', default=monitor.Monitor.DEFAULT_CLUSTER,
+            help='feather cluster on which operate (or create)')
+    subparsers = parser.add_subparsers()
+
+    status_parser = subparsers.add_parser('status',
+            help='output status and pids of all active clusters')
+    status_parser.set_defaults(func=status_cmd)
+
+    start_parser = subparsers.add_parser('start', help='start a new cluster')
+    start_parser.add_argument('-H', '--host', default='0.0.0.0',
+            help='server host/ip')
+    start_parser.add_argument('-P', '--port', type=int, default=8000,
+            help='server port')
+    start_parser.add_argument('-t', '--traceback-body', action='store_true',
+            help='include stack traces in 500 response bodies')
+    start_parser.add_argument('-k', '--keepalive-timeout',
+            type=int, default=30,
+            help='seconds to hold open inactive HTTP connections. ' +
+                    'set to 0 to turn off HTTP keepalive entirely')
+    start_parser.add_argument('-n', '--num-workers',
+            type=int, default=multiprocessing.cpu_count(),
+            help='number of server worker processes to run')
+    start_parser.add_argument('wsgiapp',
+            help='how to get the WSGI app, specified as "<import-path>:' +
+                    '<app-attribute>". so if module bar in package foo ' +
+                    'contains a WSGI app as variable "app", this would be ' +
+                    '"foo.bar:app"')
+    start_parser.set_defaults(func=start_cmd)
+
+    reload_parser = subparsers.add_parser('reload',
+            help="restart the cluster's workers")
+    reload_parser.set_defaults(func=reload_cmd)
+
+    stop_parser = subparsers.add_parser('stop', help='stop the cluster')
+    stop_parser.add_argument('-f', '--hard', dest='graceful',
+            action='store_false', default=True,
+            help="hard-stop: don't let workers flush in-progress requests")
+    stop_parser.set_defaults(func=stop_cmd)
+
+    args = parser.parse_args()
+    return args.func(environ, args) or 0
+
+
+if __name__ == '__main__':
+    exit(main(os.environ, sys.argv))

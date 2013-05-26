@@ -7,6 +7,7 @@ setup(
     name="feather-http",
     description="Server building blocks with coroutines and non-blocking I/O",
     packages=["feather"],
+    scripts=["scripts/featherctl"],
     version="0.1.0",
     author="Travis Parker",
     author_email="travis.parker@gmail.com",

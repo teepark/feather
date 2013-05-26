@@ -30,6 +30,8 @@ class Monitor(object):
 
     ZOMBIE_CHECK_INTERVAL = 2.0
 
+    DEFAULT_CLUSTER = 'default'
+
     NOTIFY_FIFO = 'notify'
     MASTER_PIDFILE = 'master.pid'
     WORKER_PIDFILE = 'worker%d.pid'
@@ -41,7 +43,7 @@ class Monitor(object):
         self.server = server
         self.count = worker_count
         self.control_dir = control_dir or os.path.join(
-                tempfile.gettempdir(), 'feather-default')
+                tempfile.gettempdir(), 'feather-%s' % self.DEFAULT_CLUSTER)
         self.daemonize = daemonize
         self.master_pid = None
         self.workers = {}
