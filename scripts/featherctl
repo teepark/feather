@@ -12,7 +12,12 @@ import tempfile
 from feather import wsgi, monitor
 
 
+DEFAULT_CLUSTER = monitor.Monitor.DEFAULT_CLUSTER
+
+
 def control_dir(cluster_name):
+    if cluster_name is None:
+        cluster_name = DEFAULT_CLUSTER
     dirs = glob.glob(os.path.join(tempfile.gettempdir(),
             'feather-%s-*' % cluster_name))
     if dirs:
@@ -28,41 +33,85 @@ def master_pid(cluster_name):
         return None
     return int(open(os.path.join(cd, 'master.pid')).read())
 
+def print_cluster_status(cluster_dir, master_pid, worker_pids, to=sys.stdout):
+    count = cluster_dir.rsplit('-', 1)[1]
+    cluster = cluster_dir.rsplit(os.path.sep, 1)[1][8:-(len(count)+1)]
+    if not (master_pid or worker_pids):
+        to.write("Cluster '%s' %s:\n" % (cluster, count))
+
+    with open(os.path.join(cluster_dir, 'master.pid'), 'r') as fp:
+        mpid = fp.read().strip()
+    if master_pid:
+        to.write(str(mpid) + '\n')
+    else:
+        to.write('  master  : %s\n' % mpid)
+
+    if master_pid and not worker_pids:
+        return
+
+    wpidfiles = glob.glob(os.path.join(cluster_dir, 'worker*.pid'))
+    wpidfiles.sort()
+    for wpidfile in wpidfiles:
+        wid = wpidfile.rsplit(os.path.sep, 1)[1][6:-4]
+        with open(wpidfile, 'r') as fp:
+            wpid = fp.read().strip()
+        if worker_pids:
+            to.write(wpid + '\n')
+        else:
+            to.write('  worker %s: %s\n' % (wid, wpid))
+
+NOMOD = object()
+NOOBJ = object()
+
+def get_imported_object(spec, delim=':'):
+    mod, attr = spec.split(delim, 1)
+    module = __import__(mod)
+    for attribute in mod.split('.')[1:]:
+        module = getattr(module, attribute, None)
+        if module is None:
+            sys.stderr.write("no module: %s\n" % mod)
+            return NOMOD
+    obj = getattr(module, attr, NOOBJ)
+    if obj is NOOBJ:
+        sys.stderr.write("no attribute: %s\n" % attr)
+    return obj
+
 
 def status_cmd(environ, args):
-    for cdir in glob.glob(os.path.join(tempfile.gettempdir(), 'feather-*')):
-        count = cdir.rsplit('-', 1)[1]
-        cluster = cdir.rsplit(os.path.sep, 1)[1][8:-(len(count)+1)]
+    if args.cluster:
+        cdirs = glob.glob(os.path.join(tempfile.gettempdir(),
+                'feather-%s-*' % args.cluster))
+        if not cdirs:
+            sys.stderr.write("no cluster '%s' active\n" % args.cluster)
+            return 1
+        print_cluster_status(cdirs[0], args.master, args.workers)
+        for cdir in cdirs[1:]:
+            sys.stdout.write('\n')
+            print_cluster_status(cdir, args.master, args.workers)
+        return 0
 
-        print "Cluster '%s' %s:" % (cluster, count)
+    if args.master or args.workers:
+        cluster_dirs = glob.glob(os.path.join(tempfile.gettempdir(),
+                'feather-%s-*' % (args.cluster or DEFAULT_CLUSTER)))
+        cluster_dirs.sort(reverse=True)
+        cluster_dirs = [cluster_dirs[0]]
+    else:
+        cluster_dirs = glob.glob(os.path.join(tempfile.gettempdir(),
+                'feather-*'))
+    if not cluster_dirs:
+        sys.stdout.write("no active clusters\n")
+        return 0
 
-        with open(os.path.join(cdir, 'master.pid'), 'r') as fp:
-            mpid = fp.read().strip()
-        print "  master  : %s" % mpid
-
-        wpidfiles = glob.glob(os.path.join(cdir, 'worker*.pid'))
-        wpidfiles.sort()
-        for wpidfile in wpidfiles:
-            wid = wpidfile.rsplit(os.path.sep, 1)[1][6:-4]
-            with open(wpidfile, 'r') as fp:
-                wpid = fp.read().strip()
-            print "  worker %s: %s" % (wid, wpid)
-
-        print
+    print_cluster_status(cluster_dirs[0], args.master, args.workers)
+    for cluster_dir in cluster_dirs[1:]:
+        sys.stdout.write('\n')
+        print_cluster_status(cluster_dir, args.master, args.workers)
 
     return 0
 
 def start_cmd(environ, args):
-    app_mod, app_attr = args.wsgiapp.split(':', 1)
-    mod = __import__(app_mod)
-    for attr in app_mod.split('.')[1:]:
-        mod = getattr(mod, attr, None)
-        if mod is None:
-            sys.stderr.write('not a module: %s\n' % app_mod)
-            return 1
-    app = getattr(mod, app_attr, None)
-    if app is None:
-        sys.stderr.write('no attribute named %s\n' % app_attr)
+    app = get_imported_object(args.wsgiapp)
+    if app in (NOMOD, NOOBJ):
         return 1
 
     cd = control_dir(args.cluster)
@@ -73,7 +122,11 @@ def start_cmd(environ, args):
             traceback_body=args.traceback_body,
             keepalive_timeout=args.keepalive_timeout)
 
-    mon = monitor.Monitor(server,
+    Mon = get_imported_object(args.monitor_class)
+    if Mon in (NOMOD, NOOBJ):
+        return 1
+
+    mon = Mon(server,
             args.num_workers,
             control_dir=cd.rsplit('-', 1)[0],
             daemonize=True)
@@ -89,7 +142,8 @@ def stop_cmd(environ, args):
 
     mp = master_pid(args.cluster)
     if mp is None:
-        sys.stderr.write('no control dir for %s\n' % args.cluster)
+        cluster = args.cluster or DEFAULT_CLUSTER
+        sys.stderr.write('no control dir for %s\n' % cluster)
         return 1
     os.kill(mp, sig)
     return 0
@@ -97,7 +151,8 @@ def stop_cmd(environ, args):
 def reload_cmd(environ, args):
     mp = master_pid(args.cluster)
     if mp is None:
-        sys.stderr.write('no control dir for %s\n' % args.cluster)
+        cluster = args.cluster or DEFAULT_CLUSTER
+        sys.stderr.write('no control dir for %s\n' % cluster)
         return 1
     os.kill(mp, signal.SIGHUP)
     return 0
@@ -105,13 +160,16 @@ def reload_cmd(environ, args):
 
 def main(environ, argv):
     parser = argparse.ArgumentParser(prog='featherctl')
-    parser.add_argument('-c', '--cluster',
-            action='store', default=monitor.Monitor.DEFAULT_CLUSTER,
+    parser.add_argument('-c', '--cluster', action='store',
             help='feather cluster on which operate (or create)')
     subparsers = parser.add_subparsers()
 
     status_parser = subparsers.add_parser('status',
             help='output status and pids of all active clusters')
+    status_parser.add_argument('-m', '--master', action='store_true',
+            help='only show the master pid of a single cluster')
+    status_parser.add_argument('-w', '--workers', action='store_true',
+            help='only show the worker pids of a single cluster')
     status_parser.set_defaults(func=status_cmd)
 
     start_parser = subparsers.add_parser('start', help='start a new cluster')
@@ -128,6 +186,10 @@ def main(environ, argv):
     start_parser.add_argument('-n', '--num-workers',
             type=int, default=multiprocessing.cpu_count(),
             help='number of server worker processes to run')
+    start_parser.add_argument('-m', '--monitor-class',
+            default='feather.monitor:Monitor',
+            help='Monitor class to use to run the cluster (specified the ' +
+                    'same way as "wsgiapp")')
     start_parser.add_argument('wsgiapp',
             help='how to get the WSGI app, specified as "<import-path>:' +
                     '<app-attribute>". so if module bar in package foo ' +
