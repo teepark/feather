@@ -133,8 +133,7 @@ def start_cmd(environ, args):
 
     mon.serve()
 
-    # now read the null byte from the notify_fifo to block until ready
-    open(os.path.join(cd, 'notify'), 'r').read(1)
+    #open(os.path.join(cd, 'notify'), 'r').read(1)
     return 0
 
 def stop_cmd(environ, args):
@@ -142,8 +141,8 @@ def stop_cmd(environ, args):
 
     mp = master_pid(args.cluster)
     if mp is None:
-        cluster = args.cluster or DEFAULT_CLUSTER
-        sys.stderr.write('no control dir for %s\n' % cluster)
+        sys.stderr.write('no control dir for %s\n' %
+                (args.cluster or DEFAULT_CLUSTER))
         return 1
     os.kill(mp, sig)
     return 0
@@ -151,8 +150,8 @@ def stop_cmd(environ, args):
 def reload_cmd(environ, args):
     mp = master_pid(args.cluster)
     if mp is None:
-        cluster = args.cluster or DEFAULT_CLUSTER
-        sys.stderr.write('no control dir for %s\n' % cluster)
+        sys.stderr.write('no control dir for %s\n' %
+                (args.cluster or DEFAULT_CLUSTER))
         return 1
     os.kill(mp, signal.SIGHUP)
     return 0
