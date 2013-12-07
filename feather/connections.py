@@ -61,7 +61,7 @@ class TCPConnection(object):
                 try:
                     self.socket.sendall(chunk)
                 except socket.error, exc:
-                    if exc.args[0] == errno.EPIPE:
+                    if exc.args[0] in (errno.EPIPE, errno.EBADF):
                         # client disconnected
                         self.closing = True
                         break
@@ -80,6 +80,10 @@ class TCPConnection(object):
 
             try:
                 request = self.get_request()
+            except socket.error, exc:
+                if exc.args[0] == errno.ECONNRESET:
+                    # indicates shutdown(SHUT_RD) on the other end
+                    break
             except Exception:
                 klass, exc, tb = sys.exc_info()
                 self.server.connections.increment()
@@ -125,8 +129,12 @@ class TCPConnection(object):
 
     def _cleanup(self):
         self.cleanup()
-        os.close(self.socket.fileno())
-        self.socket.close()
+        try:
+            os.close(self.socket.fileno())
+            self.socket.close()
+        except EnvironmentError, exc:
+            if exc.args[0] != errno.EBADF:
+                raise
         self.socket = None
 
     def cleanup(self):
