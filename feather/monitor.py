@@ -440,13 +440,13 @@ class Monitor(object):
         with io.File(self.control_path(self.WORKER_PIDFILE % wid), 'w') as fp:
             fp.write(str(os.getpid()))
 
-        if self.worker_uid is not None:
-            self.log.info("setting worker uid")
-            os.setuid(self.worker_uid)
-
         if self.worker_gid is not None:
             self.log.info("setting worker gid")
             os.setgid(self.worker_gid)
+
+        if self.worker_uid is not None:
+            self.log.info("setting worker uid")
+            os.setuid(self.worker_uid)
 
         if self.readiness_notifier is not None:
             scheduler.end(self.readiness_notifier)
