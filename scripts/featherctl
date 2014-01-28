@@ -128,12 +128,13 @@ def start_cmd(environ, args):
 
     mon = Mon(server,
             args.num_workers,
+            user=args.user,
+            group=args.group,
             control_dir=cd.rsplit('-', 1)[0],
             daemonize=True)
 
     mon.serve()
 
-    #open(os.path.join(cd, 'notify'), 'r').read(1)
     return 0
 
 def stop_cmd(environ, args):
@@ -176,6 +177,10 @@ def main(environ, argv):
             help='server host/ip')
     start_parser.add_argument('-P', '--port', type=int, default=8000,
             help='server port')
+    start_parser.add_argument('-u', '--user', type=str, default=None,
+            help='system user under which workers should run')
+    start_parser.add_argument('-g', '--group', type=str, default=None,
+            help='system group under which workers should run')
     start_parser.add_argument('-t', '--traceback-body', action='store_true',
             help='include stack traces in 500 response bodies')
     start_parser.add_argument('-k', '--keepalive-timeout',
