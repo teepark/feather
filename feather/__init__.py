@@ -2,7 +2,7 @@ import logging
 import sys
 
 
-VERSION = (0, 2, 0, '')
+VERSION = (0, 3, 0, '')
 __version__ = ".".join(filter(None, map(str, VERSION)))
 
 
