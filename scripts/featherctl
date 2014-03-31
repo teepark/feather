@@ -131,7 +131,7 @@ def start_cmd(environ, args):
             user=args.user,
             group=args.group,
             control_dir=cd.rsplit('-', 1)[0],
-            daemonize=True)
+            daemonize=not args.foreground)
 
     mon.serve()
 
@@ -190,6 +190,8 @@ def main(environ, argv):
     start_parser.add_argument('-n', '--num-workers',
             type=int, default=multiprocessing.cpu_count(),
             help='number of server worker processes to run')
+    start_parser.add_argument('-f', '--foreground', action='store_true',
+            default='false', help='run the feather master in the foreground')
     start_parser.add_argument('-m', '--monitor-class',
             default='feather.monitor:Monitor',
             help='Monitor class to use to run the cluster (specified the ' +

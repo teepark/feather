@@ -2,7 +2,6 @@
 *.pyo
 .*.sw[op]
 feather_http.egg-info/*
-MANIFEST.in
 build/*
 docs/build/*
 dist/*

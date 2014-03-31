@@ -1,7 +1,28 @@
-import os
-if os.path.exists("paver-minilib.zip"):
-    import sys
-    sys.path.insert(0, "paver-minilib.zip")
+#!/usr/bin/env python
+# vim: fileencoding=utf8:et:sw=4:ts=8:sts=4
 
-import paver.tasks
-paver.tasks.main()
+import os
+from setuptools import setup
+
+
+VERSION = (0, 2, 0, "")
+
+setup(
+    name="feather-http",
+    description="HTTP/WSGI server with coroutines and non-blocking I/O",
+    packages=["feather"],
+    scripts=["scripts/featherctl"],
+    version=".".join(filter(None, map(str, VERSION))),
+    author="Travis Parker",
+    author_email="travis.parker@gmail.com",
+    url="http://github.com/teepark/feather",
+    license="BSD",
+    classifiers = [
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: BSD License",
+        "Natural Language :: English",
+        "Programming Language :: Python",
+    ],
+    install_requires=['greenhouse'],
+)
