@@ -1,2 +1,5 @@
 0.1.0 (4/4/2013)
     - first release
+0.2.0 (3/31/2014)
+    - featherctl script added, allows for starting and managing  a feather
+      master/worker cluster for a wsgi app given its python import path

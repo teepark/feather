@@ -8,7 +8,7 @@ setup(
     description="Server building blocks with coroutines and non-blocking I/O",
     packages=["feather"],
     scripts=["scripts/featherctl"],
-    version="0.1.0",
+    version="0.2.0",
     author="Travis Parker",
     author_email="travis.parker@gmail.com",
     url="http://github.com/teepark/feather",
