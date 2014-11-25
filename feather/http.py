@@ -1,3 +1,5 @@
+# vim: fileencoding=utf8:et:sw=4:ts=8:sts=4
+
 import BaseHTTPServer
 import httplib
 import itertools
@@ -8,7 +10,7 @@ import time
 import traceback
 import urlparse
 
-from feather import connections, requests, servers
+from feather import connections, requests, servers, websocket
 import greenhouse
 
 
@@ -122,6 +124,7 @@ class HTTPRequestHandler(requests.RequestHandler):
     set_code, set_body, add_header, add_headers.
     """
     traceback_body = False
+    websockets = False
 
     def __init__(self, *args, **kwargs):
         super(HTTPRequestHandler, self).__init__(*args, **kwargs)
@@ -178,9 +181,9 @@ class HTTPRequestHandler(requests.RequestHandler):
 
     def _translate_http_error(self, error):
         self.set_code(error.code)
-        self.add_headers(error.headers)
         self.pop_header('content-type')
         self.add_header('Content-Type', 'text/plain')
+        self.add_headers(error.headers)
         self.set_body(error.body)
 
     def _format_response(self):
@@ -232,6 +235,19 @@ class HTTPRequestHandler(requests.RequestHandler):
             (code, len(head)))
 
     def handle(self, request):
+        if self.websockets \
+                and hasattr(self, 'do_websocket') \
+                and callable(self.do_websocket)   \
+                and request.method == 'GET'       \
+                and request.version >= (1, 1)     \
+                and 'host' in request.headers     \
+                and 'upgrade' in request.headers  \
+                and 'websocket' in request.headers['upgrade']:
+
+            self.connection.upgraded = True
+            websocket._handle_with_http(self, request)
+            return None, None
+
         handler = getattr(self, "do_%s" % request.method, None)
 
         try:

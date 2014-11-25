@@ -1,3 +1,5 @@
+# vim: fileencoding=utf8:et:sw=4:ts=8:sts=4
+
 import errno
 import os
 import resource

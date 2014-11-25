@@ -1,3 +1,5 @@
+# vim: fileencoding=utf8:et:sw=4:ts=8:sts=4
+
 import logging
 import urllib
 try:
@@ -88,9 +90,14 @@ class WSGIHTTPRequestHandler(http.HTTPRequestHandler):
             environ['HTTP_%s' % name.replace('-', '_').upper()] = value
 
         # the WSGI specification's handling of request headers sucks, so we're
-        # going to extend the spec here and provide a useful representation
-        environ['feather.headers'] = [tuple(h.rstrip("\r\n").split(":", 1))
-                for h in request.headers.headers]
+        # going to extend the spec here and provide a useful representation.
+        # specifically: a dict with lowercase keys and list values
+        environ['feather.headers'] = {}
+        for h in request.headers.headers:
+            key, vals = h.rstrip("\r\n").split(":", 1)
+            l = environ['feather.headers'].setdefault(key.lower(), [])
+            for val in vals.split(","):
+                l.append(val.lstrip())
 
         collector = [StringIO(), False] # (write()en data, headers sent)
 

@@ -1,3 +1,5 @@
+# vim: fileencoding=utf8:et:sw=4:ts=8:sts=4
+
 from __future__ import with_statement
 
 import datetime
@@ -40,6 +42,7 @@ class TCPConnection(object):
         self.server = server
         self.closing = False
         self.push_lock = greenhouse.Lock()
+        self.upgraded = False
 
     # be sure and implement this in concrete subclasses
     def get_request(self):
@@ -107,6 +110,10 @@ class TCPConnection(object):
                     response, metadata = handler.handle_error(klass, exc, tb)
                     klass, exc, tb = None, None, None
 
+            # intentionally leaving self.server.connections incremented
+            if self.upgraded:
+                break
+
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
@@ -125,7 +132,8 @@ class TCPConnection(object):
 
             del handler, request
 
-        self._cleanup()
+        if not self.upgraded:
+            self._cleanup()
 
     def _cleanup(self):
         self.cleanup()
