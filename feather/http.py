@@ -234,18 +234,24 @@ class HTTPRequestHandler(requests.RequestHandler):
         return (itertools.chain([head + first_chunk], iterator),
             (code, len(head)))
 
-    def handle(self, request):
-        if self.websockets \
-                and hasattr(self, 'do_websocket') \
-                and callable(self.do_websocket)   \
-                and request.method == 'GET'       \
-                and request.version >= (1, 1)     \
-                and 'host' in request.headers     \
-                and 'upgrade' in request.headers  \
-                and 'websocket' in request.headers['upgrade']:
+    def _websockets_appropriate(self, request):
+        return (hasattr(self, 'do_websocket')
+                and callable(self.do_websocket)
+                and request.method == 'GET'
+                and request.version >= (1, 1)
+                and 'host' in request.headers
+                and 'upgrade' in request.headers
+                and 'websocket' in request.headers['upgrade'])
 
+    def _do_websocket(self, request, input_gen):
+        # TODO: push out the handshake HTTP response, then call do_websocket
+        self.set_code(101)
+        self.add_headers([('Connection', 'Upgrade'), ('Upgrade', 'websocket')])
+
+    def handle(self, request):
+        if self.websockets and self._websockets_appropriate(request):
             self.connection.upgraded = True
-            websocket._handle_with_http(self, request)
+            websocket._handle_with_http(self.connection, request)
             return None, None
 
         handler = getattr(self, "do_%s" % request.method, None)

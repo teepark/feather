@@ -162,7 +162,7 @@ def _handle_with_http(handler, request):
     request.content._ignore_length = True
 
     input_gen = _input_gen(request.content)
-    for output in handler.do_websocket(request, input_gen):
+    for output in handler._do_websocket(request, input_gen):
         frame = format_single_frame_msg(output)
         if frame is None:
             break

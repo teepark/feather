@@ -110,8 +110,8 @@ class TCPConnection(object):
                     response, metadata = handler.handle_error(klass, exc, tb)
                     klass, exc, tb = None, None, None
 
-            # intentionally leaving self.server.connections incremented
             if self.upgraded:
+                self.server.connections.decrement()
                 break
 
             # the return value from handler.handle may be a generator or
@@ -132,8 +132,7 @@ class TCPConnection(object):
 
             del handler, request
 
-        if not self.upgraded:
-            self._cleanup()
+        self._cleanup()
 
     def _cleanup(self):
         self.cleanup()
