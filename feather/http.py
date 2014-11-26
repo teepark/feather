@@ -6,6 +6,7 @@ import itertools
 import logging
 import socket
 import ssl
+import sys
 import time
 import traceback
 import urlparse
@@ -15,7 +16,7 @@ import greenhouse
 
 
 __all__ = ["SizeBoundFile", "HTTPError", "HTTPRequest", "HTTPRequestHandler",
-        "HTTPConnection"]
+           "HTTPConnection"]
 
 responses = BaseHTTPServer.BaseHTTPRequestHandler.responses
 
@@ -59,17 +60,17 @@ class HTTPRequest(object):
         but the proxy is probably adding a header indicating that.
     '''
     __slots__ = [
-            "request_line",
-            "method",
-            "version",
-            "scheme",
-            "host",
-            "path",
-            "querystring",
-            "fragment",
-            "headers",
-            "content",
-            "remote_ip"]
+        "request_line",
+        "method",
+        "version",
+        "scheme",
+        "host",
+        "path",
+        "querystring",
+        "fragment",
+        "headers",
+        "content",
+        "remote_ip"]
 
     def __init__(self, **kwargs):
         for name in self.__slots__:
@@ -124,7 +125,7 @@ class HTTPRequestHandler(requests.RequestHandler):
     set_code, set_body, add_header, add_headers.
     """
     traceback_body = False
-    websockets = False
+    websocket_handler = None
 
     def __init__(self, *args, **kwargs):
         super(HTTPRequestHandler, self).__init__(*args, **kwargs)
@@ -165,7 +166,7 @@ class HTTPRequestHandler(requests.RequestHandler):
         for name, value in self._headers:
             if (name.lower() == header
                     and (required_value is None
-                        or value.lower() == required_value.lower())):
+                         or value.lower() == required_value.lower())):
                 return True
         return False
 
@@ -216,10 +217,10 @@ class HTTPRequestHandler(requests.RequestHandler):
             self.add_header('Connection', 'close')
 
         headers = '\r\n'.join('%s: %s' % (k, v.replace('\n', '\n '))
-                for k, v in self._headers)
+                              for k, v in self._headers)
 
         head = 'HTTP/%s %d %s\r\n%s\r\n\r\n' % (
-                http_version, code, status, headers)
+            http_version, code, status, headers)
 
         if isinstance(self._body, str):
             return ((head + self._body,), (code, len(head)))
@@ -232,33 +233,61 @@ class HTTPRequestHandler(requests.RequestHandler):
         except StopIteration:
             first_chunk = ''
         return (itertools.chain([head + first_chunk], iterator),
-            (code, len(head)))
+                (code, len(head)))
 
-    def _websockets_appropriate(self, request):
-        return (hasattr(self, 'do_websocket')
-                and callable(self.do_websocket)
-                and request.method == 'GET'
-                and request.version >= (1, 1)
+    def _should_websocket(self, request):
+        return ('Upgrade' in request.headers.get('connection', '')
+                and 'websocket' in request.headers.get('upgrade', '')
                 and 'host' in request.headers
-                and 'upgrade' in request.headers
-                and 'websocket' in request.headers['upgrade'])
-
-    def _do_websocket(self, request, input_gen):
-        # TODO: push out the handshake HTTP response, then call do_websocket
-        self.set_code(101)
-        self.add_headers([('Connection', 'Upgrade'), ('Upgrade', 'websocket')])
+                and request.version >= (1, 1)
+                and request.method == 'GET'
+                and isinstance(self.websocket_handler, type)
+                and issubclass(self.websocket_handler,
+                               websocket.WebSocketHandler))
 
     def handle(self, request):
-        if self.websockets and self._websockets_appropriate(request):
-            self.connection.upgraded = True
-            websocket._handle_with_http(self.connection, request)
-            return None, None
+        if self._should_websocket(request):
+            ws_handler = self.websocket_handler(self.connection)
+            code, headers = ws_handler._allow(request)
+            self.set_code(code)
+            self.add_headers(headers)
+            if code == 101:
+                try:
+                    accept, subprot, exts = ws_handler._negotiate(request)
+                except websocket.ServerProtocolError:
+                    self.connection.log_error(*sys.exc_info())
+                    self.set_code(500)
+                    return self._format_response()
+
+                self.add_headers([
+                    ('Connection', 'Upgrade'),
+                    ('Upgrade', 'websocket'),
+                    ('Sec-WebSocket-Accept', accept)])
+
+                if subprot is not None:
+                    self.add_header('Sec-WebSocket-Protocol', subprot)
+
+                self.add_headers(('Sec-WebSocket-Extensions', ext)
+                                 for ext in exts)
+
+                self.set_body('')
+
+                if self.connection.keepalive_timeout:
+                    self.connection.socket.settimeout(None)
+
+                self.connection.upgraded = True
+                request.content._ignore_length = True
+
+                greenhouse.schedule(ws_handler._handle,
+                                    args=(request.content, self.connection))
+
+            return self._format_response()
 
         handler = getattr(self, "do_%s" % request.method, None)
 
         try:
             if handler is None or handler(request) is NotImplemented:
-                raise HTTPError(405) # Method Not Allowed
+                raise HTTPError(405)  # Method Not Allowed
 
         except HTTPError, error:
             self._translate_http_error(error)
@@ -371,18 +400,17 @@ class HTTPConnection(connections.TCPConnection):
         if 'content-length' in headers:
             content.length = int(headers['content-length'])
 
-        return HTTPRequest(
-                request_line=request_line,
-                method=method,
-                version=version,
-                scheme=scheme,
-                host=host,
-                path=url.path,
-                querystring=url.query,
-                fragment=url.fragment,
-                headers=headers,
-                content=content,
-                remote_ip=self.client_address[0])
+        return HTTPRequest(request_line=request_line,
+                           method=method,
+                           version=version,
+                           scheme=scheme,
+                           host=host,
+                           path=url.path,
+                           querystring=url.query,
+                           fragment=url.fragment,
+                           headers=headers,
+                           content=content,
+                           remote_ip=self.client_address[0])
 
     @staticmethod
     def format_datetime(dt):
@@ -429,7 +457,7 @@ class HTTPConnection(connections.TCPConnection):
 
     def log_error(self, klass, exc, tb):
         self.server.error_log.error(
-                "".join(traceback.format_exception(klass, exc, tb)))
+            "".join(traceback.format_exception(klass, exc, tb)))
 
 
 class HTTPServer(servers.TCPServer):
@@ -438,7 +466,7 @@ class HTTPServer(servers.TCPServer):
     connection_handler = HTTPConnection
 
     access_log_format = '%(ip)s - - [%(time)s] "%(request_line)s" ' + \
-            '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"'
+        '%(resp_code)d %(body_len)d "%(referer)s" "%(user_agent)s"'
 
     def __init__(self, *args, **kwargs):
         super(HTTPServer, self).__init__(*args, **kwargs)
@@ -459,13 +487,14 @@ class HTTPSServer(HTTPServer):
 
     def init_socket(self):
         super(HTTPSServer, self).init_socket()
-        self.socket = greenhouse.wrap_socket(self.socket,
-                keyfile=self.keyfile,
-                certfile=self.certfile,
-                server_side=True,
-                cert_reqs=self.cert_reqs,
-                ssl_version=self.ssl_version,
-                ca_certs=self.ca_certs,
-                do_handshake_on_connect=True,
-                suppress_ragged_eofs=True,
-                ciphers=self.ciphers)
+        self.socket = greenhouse.wrap_socket(
+            self.socket,
+            keyfile=self.keyfile,
+            certfile=self.certfile,
+            server_side=True,
+            cert_reqs=self.cert_reqs,
+            ssl_version=self.ssl_version,
+            ca_certs=self.ca_certs,
+            do_handshake_on_connect=True,
+            suppress_ragged_eofs=True,
+            ciphers=self.ciphers)

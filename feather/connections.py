@@ -77,9 +77,9 @@ class TCPConnection(object):
 
         while not self.closing and not self.server.shutting_down:
             handler = self.request_handler(
-                    self.client_address,
-                    (self.server.name, self.server.port),
-                    self)
+                self.client_address,
+                (self.server.name, self.server.port),
+                self)
 
             try:
                 request = self.get_request()
@@ -110,10 +110,6 @@ class TCPConnection(object):
                     response, metadata = handler.handle_error(klass, exc, tb)
                     klass, exc, tb = None, None, None
 
-            if self.upgraded:
-                self.server.connections.decrement()
-                break
-
             # the return value from handler.handle may be a generator or
             # other lazy iterator to allow for large responses that send
             # in chunks and don't block the entire server the whole time
@@ -132,7 +128,12 @@ class TCPConnection(object):
 
             del handler, request
 
-        self._cleanup()
+            if self.upgraded:
+                self.server.connections.increment()
+                break
+
+        if not self.upgraded:
+            self._cleanup()
 
     def _cleanup(self):
         self.cleanup()
